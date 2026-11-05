@@ -1,0 +1,343 @@
+<!doctype html>
+<!--
+  Builds the high-resolution John Calvin character from the hand-made eye pictures in
+  assets/John_Calvin_eyes/ (white background). Produces, in assets/John_Calvin_HD/:
+    John_Calvin.png       the head on a see-through background (from viewer.png)
+    eyes_<look>.png       see-through eye overlays, lined up with the head
+    mouth_<A-H,X>.png     see-through Rhubarb mouth overlays
+  Open via http://localhost:5173/tools/make-calvin-hd.html  (#mouths or #eyes shows a preview).
+-->
+<body style="margin:0;background:#555">
+<canvas id="sheet"></canvas>
+<pre id="out" style="display:none"></pre>
+<script>
+const SRC = '../assets/John_Calvin_eyes/';
+const LOOKS = ['viewer', 'right', 'left', 'up', 'down', 'closed'];
+const K = 1136 / 665;                       // this picture is this much bigger than the original
+const C = { x: 797, y: 846 }, ROT = -0.04;  // where the lips meet
+// Areas around each eye that are swapped between eye pictures (centre x/y, radius x/y).
+const EYE_AREAS = [[600, 525, 108, 80], [852, 507, 84, 68]];
+
+const SHAPES = {   // same mouth recipe as the original Calvin, in original-size units
+  A: { sx: 0.96, sy: 0.85, up: 1, low: -1 },
+  B: { sx: 1.0,  up: -1, low: 4,  teethT: 3, teethB: 3 },
+  C: { sx: 1.0,  up: -2, low: 9,  teethT: 4, tongue: 'low' },
+  D: { sx: 1.03, up: -3, low: 17, teethT: 4, tongue: 'low' },
+  E: { sx: 0.78, sy: 1.08, up: -2, low: 10, round: true, tongue: 'low' },
+  F: { sx: 0.55, sy: 1.2, up: -2, low: 7, round: true },
+  G: { sx: 0.97, up: -1, low: 4, bite: true },
+  H: { sx: 1.0,  up: -2, low: 10, teethT: 4, tongue: 'high' },
+};
+
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const load = u => new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = j; i.src = u; });
+let seed = 11;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+let W, H;
+
+function pixels(img) { const c = mk(W, H), g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, W, H); }
+
+/* ---- 1. Remove the white background (flood fill from the edges, soft edge) ---- */
+function cutOut(id) {
+  const d = id.data, bg = new Uint8Array(W * H), q = new Int32Array(W * H);
+  const whiteish = p => Math.min(d[p * 4], d[p * 4 + 1], d[p * 4 + 2]) >= 228;
+  let qh = 0, qt = 0;
+  for (let x = 0; x < W; x++) for (const y of [0, H - 1]) { const p = y * W + x; if (!bg[p] && whiteish(p)) { bg[p] = 1; q[qt++] = p; } }
+  for (let y = 0; y < H; y++) for (const x of [0, W - 1]) { const p = y * W + x; if (!bg[p] && whiteish(p)) { bg[p] = 1; q[qt++] = p; } }
+  while (qh < qt) {
+    const p = q[qh++], x = p % W, y = (p / W) | 0;
+    for (const n of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, y > 0 ? p - W : -1, y < H - 1 ? p + W : -1]) {
+      if (n >= 0 && !bg[n] && whiteish(n)) { bg[n] = 1; q[qt++] = n; }
+    }
+  }
+  // Distance (up to 3 px) from the background, for a soft, de-whitened edge.
+  const near = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const p = y * W + x;
+    if (bg[p]) continue;
+    let dmin = 9;
+    for (let dy = -3; dy <= 3 && dmin > 1; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H || bg[yy * W + xx]) { dmin = Math.min(dmin, Math.max(Math.abs(dx), Math.abs(dy))); }
+    }
+    near[p] = dmin;
+  }
+  for (let p = 0; p < W * H; p++) {
+    const i = p * 4;
+    if (bg[p]) { d[i + 3] = 0; continue; }
+    if (near[p] <= 3) {
+      // How far from white this pixel is decides how solid it is; then remove the white mixed in.
+      const m = Math.min(d[i], d[i + 1], d[i + 2]);
+      let a = Math.min(1, (255 - m) / 110);
+      if (near[p] === 1) a *= 0.85;
+      a = Math.max(a, 0.02);
+      for (let c = 0; c < 3; c++) d[i + c] = Math.max(0, Math.min(255, (d[i + c] - (1 - a) * 255) / a));
+      d[i + 3] = Math.round(a * 255);
+    }
+  }
+  return id;
+}
+
+/* ---- 2. Eye overlays ---- */
+function areaMask(blur) {
+  const m = mk(W, H), g = m.getContext('2d');
+  g.filter = `blur(${blur}px)`; g.fillStyle = '#fff';
+  for (const [x, y, rx, ry] of EYE_AREAS) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); }
+  return m;
+}
+// Find the small shift that lines a picture up with the base, using skin around the eyes.
+function bestShift(base, other, zones = [[540, 400, 340, 40], [690, 560, 110, 90], [520, 600, 150, 40]]) { // default: forehead, nose bridge, cheek
+  const b = base.data, o = other.data;
+  let best = [0, 0, Infinity];
+  for (let sy = -9; sy <= 9; sy++) for (let sx = -9; sx <= 9; sx++) {
+    let e = 0;
+    for (const [x0, y0, w, h] of zones) for (let y = y0; y < y0 + h; y += 2) for (let x = x0; x < x0 + w; x += 2) {
+      const i = (y * W + x) * 4, j = ((y + sy) * W + (x + sx)) * 4;
+      e += Math.abs(b[i] - o[j]) + Math.abs(b[i + 1] - o[j + 1]) + Math.abs(b[i + 2] - o[j + 2]);
+    }
+    if (e < best[2]) best = [sx, sy, e];
+  }
+  return best;
+}
+function eyeOverlay(baseId, img, otherId, headAlpha) {
+  const [sx, sy] = bestShift(baseId, otherId);
+  // Use the picture with its own white background removed, so none of it shows after shifting.
+  const clean = mk(W, H); clean.getContext('2d').putImageData(cutOut(otherId), 0, 0);
+  const ov = mk(W, H), g = ov.getContext('2d');
+  g.drawImage(clean, -sx, -sy);
+  // Match the overall colour to the base around the edge of the swapped area.
+  const od = g.getImageData(0, 0, W, H), b = baseId.data, d = od.data;
+  const sum = [0, 0, 0, 0, 0, 0];
+  for (const [x, y, rx, ry] of EYE_AREAS) for (let yy = y - ry; yy < y + ry; yy += 2) for (let xx = x - rx; xx < x + rx; xx += 2) {
+    const r = ((xx - x) / rx) ** 2 + ((yy - y) / ry) ** 2;
+    if (r < 0.75 || r > 1.1) continue;
+    const i = (yy * W + xx) * 4;
+    if (b[i + 3] < 250) continue;
+    for (let c = 0; c < 3; c++) { sum[c] += b[i + c]; sum[c + 3] += d[i + c]; }
+  }
+  const gain = [0, 1, 2].map(c => sum[c + 3] ? sum[c] / sum[c + 3] : 1);
+  for (let i = 0; i < d.length; i += 4) for (let c = 0; c < 3; c++) d[i + c] = Math.min(255, d[i + c] * gain[c]);
+  g.putImageData(od, 0, 0);
+  g.globalCompositeOperation = 'destination-in';
+  g.drawImage(areaMask(14), 0, 0);
+  g.drawImage(headAlpha, 0, 0);
+  return { canvas: ov, shift: [sx, sy], gain: gain.map(v => v.toFixed(3)) };
+}
+
+/* ---- 3. Mouths (lips cut from the head and moved) ---- */
+let src;
+const avg = (x, y, r = 3) => {
+  const s = [0, 0, 0]; let n = 0;
+  x = Math.round(x); y = Math.round(y);
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const i = ((y + dy) * W + x + dx) * 4; for (let c = 0; c < 3; c++) s[c] += src[i + c]; n++; }
+  return s.map(v => v / n);
+};
+function lipStrip(head, dx, dy, rx, ry, upper) {
+  const mask = mk(W, H), m = mask.getContext('2d');
+  m.filter = `blur(${1.6 * K}px)`;
+  m.save(); m.translate(C.x, C.y); m.rotate(ROT);
+  m.beginPath(); m.rect(-80 * K, upper ? -40 * K : 0.5 * K, 160 * K, 40 * K); m.clip();
+  m.fillStyle = '#fff'; m.beginPath(); m.ellipse(dx * K, dy * K, rx * K, ry * K, 0, 0, Math.PI * 2); m.fill();
+  m.restore();
+  const s = mk(W, H), g = s.getContext('2d');
+  g.drawImage(head, 0, 0);
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(mask, 0, 0);
+  return s;
+}
+function erase(g) {
+  const x0 = Math.round(C.x - 46 * K), x1 = Math.round(C.x + 50 * K), y0 = Math.round(C.y - 22 * K), y1 = Math.round(C.y + 23 * K);
+  const t = mk(x1 - x0, y1 - y0), tg = t.getContext('2d'), id = tg.createImageData(t.width, t.height);
+  for (let x = x0; x < x1; x++) {
+    const top = avg(x, y0 - 4), bot = avg(x, y1 + 4), streak = (rnd() - 0.5) * 22;
+    for (let y = y0; y < y1; y++) {
+      const k = (y - y0) / (y1 - y0), n = streak * 0.6 + (rnd() - 0.5) * 22;
+      const d = ((x - C.x) / (46 * K)) ** 2 + ((y - C.y - K) / (21 * K)) ** 2;
+      const a = d < 0.5 ? 1 : d < 1 ? 1 - (d - 0.5) / 0.5 : 0;
+      const i = ((y - y0) * t.width + (x - x0)) * 4;
+      // Fine beard texture borrowed from beside the mouth (detail = pixel minus its local average).
+      const tx = Math.round(x - 78 * K), ty = y, j = (ty * W + tx) * 4, loc = avg(tx, ty, 4);
+      for (let c = 0; c < 3; c++) id.data[i + c] = (top[c] + (bot[c] - top[c]) * k) * 0.95 + (src[j + c] - loc[c]) * 1.1 + n * 0.3;
+      id.data[i + 3] = Math.round(255 * a);
+    }
+  }
+  tg.putImageData(id, 0, 0);
+  g.save(); g.filter = 'blur(0.4px)'; g.drawImage(t, x0, y0); g.restore();
+}
+function placed(g, strip, s, dy) {
+  g.save();
+  g.translate(C.x, C.y + dy * K); g.rotate(ROT); g.scale(s.sx || 1, s.sy || 1); g.rotate(-ROT); g.translate(-C.x, -C.y);
+  g.drawImage(strip, 0, 0);
+  g.restore();
+}
+function local(g) { g.translate(C.x, C.y); g.rotate(ROT); g.scale(K, K); }
+function drawShape(g, s, UPPER, LOWER) {
+  erase(g);
+  const sx = s.sx || 1, yTop = s.up - 0.5, yBot = s.low + 1.5, w = 26 * sx * (s.round ? 0.95 : 1);
+  if (yBot - yTop > 2) {
+    g.save(); local(g);
+    const open = () => {
+      g.beginPath();
+      if (s.round) { g.ellipse(0, (yTop + yBot) / 2, w * 0.8, (yBot - yTop) / 2 + 2, 0, 0, Math.PI * 2); return; }
+      const mid = (yTop + yBot) / 2;
+      g.moveTo(-w, mid - 0.5);
+      g.bezierCurveTo(-w * 0.5, yTop - 2, w * 0.5, yTop - 2, w, mid - 2);
+      g.bezierCurveTo(w * 0.5, yBot + 3, -w * 0.5, yBot + 3, -w, mid - 0.5);
+      g.closePath();
+    };
+    open();
+    const gr = g.createRadialGradient(0, (yTop + yBot) / 2, 1, 0, (yTop + yBot) / 2, w);
+    gr.addColorStop(0, '#220a08'); gr.addColorStop(1, '#3d1510');
+    g.fillStyle = gr; g.fill();
+    g.save(); open(); g.clip();
+    const tongue = (y, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(0, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+    if (s.tongue === 'low') tongue(yBot + 2, w * 0.62, Math.max(4, (yBot - yTop) * 0.38), '#8a433b');
+    if (s.tongue === 'high') tongue(yTop + (yBot - yTop) * 0.4, w * 0.3, (yBot - yTop) * 0.45, '#97493f');
+    const teeth = (y, h) => {
+      const tg = g.createLinearGradient(0, y, 0, y + h);
+      tg.addColorStop(0, '#b9ac95'); tg.addColorStop(1, '#85765f');
+      g.fillStyle = tg; g.fillRect(-w * 0.62, y, w * 1.24, h);
+      g.strokeStyle = 'rgba(80,60,45,.3)'; g.lineWidth = 0.5;
+      for (let x = -w * 0.55; x <= w * 0.56; x += w * 0.28) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + h); g.stroke(); }
+    };
+    if (s.teethT) teeth(yTop - 1, s.teethT + 1);
+    if (s.teethB) teeth(yBot - s.teethB, s.teethB + 1);
+    g.restore(); g.restore();
+  }
+  placed(g, LOWER, s, s.low);
+  if (s.bite) {
+    g.save(); local(g);
+    const tg = g.createLinearGradient(0, 0, 0, s.low + 4);
+    tg.addColorStop(0, '#b3a58d'); tg.addColorStop(1, '#85765f');
+    g.fillStyle = tg;
+    g.beginPath(); g.moveTo(-12, -1); g.lineTo(12, -2); g.quadraticCurveTo(11, s.low + 2, 0, s.low + 3); g.quadraticCurveTo(-11, s.low + 2, -12, -1); g.fill();
+    g.strokeStyle = 'rgba(80,60,45,.3)'; g.lineWidth = 0.5;
+    for (const x of [-6, 0, 6]) { g.beginPath(); g.moveTo(x, -1); g.lineTo(x, s.low + 4); g.stroke(); }
+    g.restore();
+  }
+  placed(g, UPPER, s, s.up);
+  if (yBot - yTop <= 2) {
+    g.save(); local(g);
+    g.strokeStyle = 'rgba(50,20,14,.35)'; g.lineWidth = 1.1;
+    g.beginPath(); g.moveTo(-22 * sx, 0.5); g.bezierCurveTo(-8, 1.5, 8, 1.5, 23 * sx, 0); g.stroke();
+    g.restore();
+  }
+}
+
+/* ---- 3b. Hand-made mouth pictures (assets/mouths/A.jpg …) ---- */
+// Each picture is the whole head with a different mouth. Line it up, find the area that
+// actually changed (the mouth, plus any beard that was redrawn), and keep just that.
+function photoMouth(baseId, otherId, head) {
+  const [sx, sy] = bestShift(baseId, otherId, [[700, 640, 160, 90], [560, 700, 110, 120], [520, 860, 120, 120], [700, 985, 200, 45]]);
+  const clean = mk(W, H); clean.getContext('2d').putImageData(cutOut(otherId), 0, 0);
+  const ov = mk(W, H), g = ov.getContext('2d');
+  g.drawImage(clean, -sx, -sy);
+  const od = g.getImageData(0, 0, W, H), b = baseId.data, d = od.data;
+
+  // Blurred brightness difference inside a window around the mouth.
+  const X0 = 540, Y0 = 680, X1 = 1080, Y1 = 1080, ww = X1 - X0, hh = Y1 - Y0;
+  const diff = new Float32Array(ww * hh);
+  for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) {
+    const i = ((y + Y0) * W + x + X0) * 4;
+    if (b[i + 3] < 200) continue;
+    diff[y * ww + x] = Math.abs((b[i] - d[i]) * 0.3 + (b[i + 1] - d[i + 1]) * 0.59 + (b[i + 2] - d[i + 2]) * 0.11);
+  }
+  const R = 7, blur = new Float32Array(ww * hh), tmp = new Float32Array(ww * hh);
+  for (let y = 0; y < hh; y++) { let a = 0; for (let x = -R; x < ww + R; x++) { if (x + R < ww) a += diff[y * ww + Math.min(ww - 1, x + R)]; if (x - R - 1 >= 0) a -= diff[y * ww + x - R - 1]; if (x >= 0 && x < ww) tmp[y * ww + x] = a / (2 * R + 1); } }
+  for (let x = 0; x < ww; x++) { let a = 0; for (let y = -R; y < hh + R; y++) { if (y + R < hh) a += tmp[Math.min(hh - 1, y + R) * ww + x]; if (y - R - 1 >= 0) a -= tmp[(y - R - 1) * ww + x]; if (y >= 0 && y < hh) blur[y * ww + x] = a / (2 * R + 1); } }
+  // The changed area: strong differences near the mouth.
+  let bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1;
+  for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) {
+    if (blur[y * ww + x] < 42) continue;
+    const gx = x + X0, gy = y + Y0;
+    if (((gx - C.x) / 200) ** 2 + ((gy - C.y - 20) / 170) ** 2 > 1) continue;
+    bx0 = Math.min(bx0, gx); bx1 = Math.max(bx1, gx); by0 = Math.min(by0, gy); by1 = Math.max(by1, gy);
+  }
+  // Always include at least the whole lip area, even when the change is subtle (like A).
+  if (bx1 < 0) { bx0 = bx1 = C.x; by0 = by1 = C.y; }
+  bx0 = Math.min(bx0, C.x - 80); bx1 = Math.max(bx1, C.x + 80); by0 = Math.min(by0, C.y - 34); by1 = Math.max(by1, C.y + 38);
+  const ex = (bx0 + bx1) / 2, ey = (by0 + by1) / 2, rx = (bx1 - bx0) / 2 * 1.1 + 16, ry = (by1 - by0) / 2 * 1.1 + 16;
+
+  // Match colour to the head around the edge of that area.
+  const sum = [0, 0, 0, 0, 0, 0];
+  for (let y = Math.round(ey - ry); y < ey + ry; y += 2) for (let x = Math.round(ex - rx); x < ex + rx; x += 2) {
+    const r = ((x - ex) / rx) ** 2 + ((y - ey) / ry) ** 2;
+    if (r < 0.8 || r > 1.15) continue;
+    const i = (y * W + x) * 4;
+    if (b[i + 3] < 250 || d[i + 3] < 250) continue;
+    for (let c = 0; c < 3; c++) { sum[c] += b[i + c]; sum[c + 3] += d[i + c]; }
+  }
+  const gain = [0, 1, 2].map(c => sum[c + 3] ? sum[c] / sum[c + 3] : 1);
+  for (let i = 0; i < d.length; i += 4) for (let c = 0; c < 3; c++) d[i + c] = Math.min(255, d[i + c] * gain[c]);
+  g.putImageData(od, 0, 0);
+
+  const m = mk(W, H), mg = m.getContext('2d');
+  mg.filter = 'blur(12px)'; mg.fillStyle = '#fff';
+  mg.beginPath(); mg.ellipse(ex, ey, rx, ry, 0, 0, Math.PI * 2); mg.fill();
+  g.globalCompositeOperation = 'destination-in';
+  g.drawImage(m, 0, 0); g.drawImage(head, 0, 0);
+  return { canvas: ov, info: { shift: [sx, sy], area: [Math.round(ex), Math.round(ey), Math.round(rx), Math.round(ry)], gain: gain.map(v => v.toFixed(3)) } };
+}
+
+/* ---- run ---- */
+(async () => {
+  const imgs = {};
+  for (const n of LOOKS) imgs[n] = await load(SRC + n + '.png');
+  W = imgs.viewer.width; H = imgs.viewer.height;
+  const out = {}, info = {};
+
+  const baseId = cutOut(pixels(imgs.viewer));
+  const head = mk(W, H); head.getContext('2d').putImageData(baseId, 0, 0);
+  out.head = head.toDataURL('image/png');
+  src = baseId.data;
+
+  const eyes = {};
+  for (const n of LOOKS) {
+    if (n === 'viewer') { const e = mk(W, H); eyes[n] = e; continue; }
+    const r = eyeOverlay(baseId, null, pixels(imgs[n]), head);
+    eyes[n] = r.canvas; info[n] = { shift: r.shift, gain: r.gain };
+  }
+  for (const n of LOOKS) out['eyes_' + n] = eyes[n].toDataURL('image/png');
+
+  // Mouths: use the hand-made pictures in assets/mouths/ when they exist, otherwise draw them.
+  const UPPER = lipStrip(head, 1, -7, 37, 10, true), LOWER = lipStrip(head, 2, 7, 33, 10, false);
+  const mouths = {};
+  for (const k of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'X']) {
+    let photo = null;
+    for (const ext of ['jpg', 'png', 'jpeg']) { try { photo = await load(`../assets/mouths/${k}.${ext}`); break; } catch { /* try next */ } }
+    if (photo) {
+      const r = photoMouth(baseId, pixels(photo), head);
+      mouths[k] = r.canvas; info['mouth_' + k] = r.info;
+    } else {
+      const ov = mk(W, H), og = ov.getContext('2d');
+      if (k !== 'X') drawShape(og, SHAPES[k], UPPER, LOWER);
+      og.globalCompositeOperation = 'destination-in'; og.drawImage(head, 0, 0);
+      mouths[k] = ov;
+    }
+    out['mouth_' + k] = mouths[k].toDataURL('image/png');
+  }
+
+  // Preview sheet
+  const which = location.hash.includes('mouthswide') ? 'mouthswide' : location.hash.includes('mouths') ? 'mouths' : location.hash.includes('head') ? 'head' : 'eyes';
+  const sheet = document.getElementById('sheet'), sg = sheet.getContext('2d');
+  const compose = ov => { const f = mk(W, H), g = f.getContext('2d'); g.fillStyle = '#7cc4f0'; g.fillRect(0, 0, W, H); g.drawImage(head, 0, 0); if (ov) g.drawImage(ov, 0, 0); return f; };
+  if (which === 'head') {
+    sheet.width = W * 0.55; sheet.height = H * 0.55;
+    sg.drawImage(compose(null), 0, 0, sheet.width, sheet.height);
+  } else {
+    const list = which === 'eyes' ? LOOKS : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'X'];
+    const box = which === 'eyes' ? [500, 420, 440, 200] : which === 'mouthswide' ? [C.x - 330, C.y - 260, 560, 520] : [C.x - 150, C.y - 90, 300, 190];
+    const cols = 3, Z = which === 'eyes' ? 1.15 : which === 'mouthswide' ? 0.95 : 1.7, cw = box[2] * Z, ch = box[3] * Z;
+    sheet.width = cw * cols; sheet.height = (ch + 22) * Math.ceil(list.length / cols);
+    sg.fillStyle = '#222'; sg.fillRect(0, 0, sheet.width, sheet.height);
+    list.forEach((n, i) => {
+      const x = (i % cols) * cw, y = Math.floor(i / cols) * (ch + 22);
+      sg.drawImage(compose(which === 'eyes' ? eyes[n] : mouths[n]), ...box, x, y + 22, cw, ch);
+      sg.fillStyle = '#fff'; sg.font = 'bold 16px sans-serif'; sg.fillText(n, x + 6, y + 16);
+    });
+  }
+  out.preview = sheet.toDataURL('image/png');
+  out.info = JSON.stringify(info);
+  document.title = 'done ' + JSON.stringify(info);
+  if (location.hash.includes('dump')) document.getElementById('out').textContent = JSON.stringify(out);
+})();
+</script>

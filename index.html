@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cartoon Studio</title>
+  <link rel="icon" href="assets/smiley.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand"><img src="assets/smiley.svg" alt="">Cartoon Studio</div>
+    <input id="projName" data-bind="project:name" title="Project name" spellcheck="false">
+    <button data-act="newProject">New</button>
+    <button data-act="openProject">Open…</button>
+    <button data-act="saveProject" title="Save project file (Ctrl+S)">Save</button>
+    <span class="sep"></span>
+    <button data-act="undo" id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
+    <button data-act="redo" id="redoBtn" title="Redo (Ctrl+Y)">↷ Redo</button>
+    <div class="spacer"></div>
+    <button data-act="help" title="Help & shortcuts">?</button>
+    <button data-act="snapshot" title="Save this frame as a picture">📷 Frame PNG</button>
+    <button data-act="exportVideo" class="primary">🎬 Export Video</button>
+  </header>
+
+  <main id="workspace">
+    <aside id="library">
+      <div class="sec" id="charSec" hidden>
+        <h4>Characters</h4>
+        <div class="lib-grid" id="charList"></div>
+      </div>
+      <div class="sec">
+        <h4>Add to scene</h4>
+        <div class="lib-grid">
+          <button data-act="addSmiley">🙂 Smiley character</button>
+          <button data-act="addImage">🖼️ Image / character art</button>
+          <button data-act="addText">🔤 Text / caption</button>
+        </div>
+      </div>
+      <div class="sec">
+        <h4>Add audio</h4>
+        <div class="lib-grid">
+          <button data-act="addMusic">🎵 Music</button>
+          <button data-act="addVoice">🎙️ Voice / dialog</button>
+          <button data-act="addSfx">💥 Sound effect</button>
+        </div>
+      </div>
+      <div class="sec">
+        <h4>Lip sync</h4>
+        <div id="serverStatus" class="status">Checking…</div>
+        <button data-act="rhubarbHelp" class="full">How to set up Rhubarb</button>
+      </div>
+      <div class="sec">
+        <h4>How it works</h4>
+        <p class="hint">
+          1. Click a frame on the timeline.<br>
+          2. Drag a character on the stage. That frame becomes a <b>keyframe</b> ◆.<br>
+          3. Click a later frame and move it again.<br>
+          4. Press <kbd>Space</kbd> to play. The frames in between are drawn for you.
+        </p>
+        <button data-act="help" class="full">All shortcuts</button>
+      </div>
+    </aside>
+
+    <section id="stageArea">
+      <div id="stageWrap">
+        <canvas id="stage" width="1080" height="1920"></canvas>
+      </div>
+      <div id="stageInfo">Drag to move · Scroll to resize · Shift+scroll to rotate · Ctrl+scroll to zoom</div>
+      <div id="zoomCtl">
+        <button data-act="viewZoomOut" title="Zoom out (−)">−</button>
+        <button data-act="viewFit" id="zoomLabel" title="Fit the whole picture (0)">Fit</button>
+        <button data-act="viewZoomIn" title="Zoom in (+)">+</button>
+      </div>
+    </section>
+
+    <aside id="props"></aside>
+  </main>
+
+  <section id="timeline">
+    <div id="transport">
+      <button data-act="first" title="First frame (Home)">⏮</button>
+      <button data-act="prev" title="Previous frame (←)">◀</button>
+      <button data-act="play" id="playBtn" class="play" title="Play / pause (Space)">▶</button>
+      <button data-act="next" title="Next frame (→)">▶</button>
+      <button data-act="last" title="Last frame (End)">⏭</button>
+      <span id="frameInfo"></span>
+      <button data-act="endMovieHere" id="endHereBtn" title="Make the movie end on this frame">✂ End here</button>
+      <div class="spacer"></div>
+      <button data-act="toggleLoop" id="tgLoop" title="Loop playback">🔁 Loop</button>
+      <button data-act="toggleOnion" id="tgOnion" title="Show ghosts of the previous and next keyframes">👻 Onion skin</button>
+      <button data-act="togglePath" id="tgPath" title="Show the path the selected character travels">〰 Motion path</button>
+      <button data-act="toggleSafe" id="tgSafe" title="Show the area that phone app buttons won't cover">▭ Safe zone</button>
+      <span class="sep"></span>
+      <button data-act="zoomOut" title="Zoom timeline out">−</button>
+      <button data-act="zoomIn" title="Zoom timeline in">+</button>
+      <button data-act="zoomFit" title="Zoom to show the whole movie">↔ Fit</button>
+    </div>
+    <div id="tlScroll"><div id="tlContent"></div></div>
+  </section>
+
+  <div id="toast"></div>
+
+  <script src="js/smiley.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

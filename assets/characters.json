@@ -1,0 +1,31 @@
+{
+  "characters": [
+    {
+      "name": "John Calvin",
+      "icon": "🧔",
+      "head": "assets/John_Calvin_HD/John_Calvin.png",
+      "scale": 0.6,
+      "eyesNamedFrom": "character",
+      "mouths": {
+        "A": "assets/John_Calvin_HD/mouth_A.png",
+        "B": "assets/John_Calvin_HD/mouth_B.png",
+        "C": "assets/John_Calvin_HD/mouth_C.png",
+        "D": "assets/John_Calvin_HD/mouth_D.png",
+        "E": "assets/John_Calvin_HD/mouth_E.png",
+        "F": "assets/John_Calvin_HD/mouth_F.png",
+        "G": "assets/John_Calvin_HD/mouth_G.png",
+        "H": "assets/John_Calvin_HD/mouth_H.png",
+        "X": "assets/John_Calvin_HD/mouth_X.png"
+      },
+      "eyes": {
+        "viewer": "assets/John_Calvin_HD/eyes_viewer.png",
+        "right": "assets/John_Calvin_HD/eyes_right.png",
+        "left": "assets/John_Calvin_HD/eyes_left.png",
+        "up": "assets/John_Calvin_HD/eyes_up.png",
+        "down": "assets/John_Calvin_HD/eyes_down.png",
+        "closed": "assets/John_Calvin_HD/eyes_closed.png"
+      },
+      "version": 5
+    }
+  ]
+}
