@@ -25,7 +25,50 @@
         "down": "assets/John_Calvin_HD/eyes_down.png",
         "closed": "assets/John_Calvin_HD/eyes_closed.png"
       },
-      "version": 5
+      "version": 5,
+      "body": {
+        "neck": [
+          600,
+          1080
+        ],
+        "size": 1,
+        "robe": "#161616",
+        "skin": "#d6a07c",
+        "facing": 1,
+        "collar": true,
+        "collarColor": "#6b4a2e"
+      },
+      "beardTop": 900,
+      "face": {
+        "mouthR": [
+          710,
+          822
+        ],
+        "mouthL": [
+          845,
+          831
+        ],
+        "cheekR": [
+          640,
+          650
+        ],
+        "cheekL": [
+          870,
+          630
+        ],
+        "browR": [
+          615,
+          432,
+          110,
+          34
+        ],
+        "browL": [
+          862,
+          410,
+          62,
+          30
+        ]
+      }
     }
   ]
 }

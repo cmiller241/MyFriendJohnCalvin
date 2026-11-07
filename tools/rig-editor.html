@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Character Joints</title>
+<link rel="icon" href="../assets/smiley.svg">
+<style>
+:root {
+  --bg: #16181d; --panel: #1f2229; --panel2: #262a33; --line: #323745; --text: #e6e8ee; --dim: #9aa1b0;
+  --acc: #4da3ff; --ok: #3ecf8e; --warn: #ffb547; --pivot: #ff4d6d; --end: #ffd166;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+  display: grid; grid-template-columns: minmax(0, 1fr) 370px; grid-template-rows: 50px minmax(0, 1fr);
+}
+header {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0;
+}
+header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+header .file { color: var(--dim); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header .sp { flex: 1; }
+button, select, input[type=text] {
+  font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 10px;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--acc); }
+button.primary { background: var(--acc); border-color: var(--acc); color: #071422; font-weight: 600; }
+button.on { background: #17406b; border-color: var(--acc); }
+label.check { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); white-space: nowrap; }
+#stage {
+  position: relative; overflow: hidden; min-width: 0;
+  background-color: #f1f1f4;
+  background-image: linear-gradient(45deg, #e4e4ea 25%, transparent 25%, transparent 75%, #e4e4ea 75%),
+                    linear-gradient(45deg, #e4e4ea 25%, transparent 25%, transparent 75%, #e4e4ea 75%);
+  background-size: 28px 28px; background-position: 0 0, 14px 14px;
+}
+#stage > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+#stage.placing > svg { cursor: crosshair; }
+#stage.panning > svg { cursor: grabbing; }
+#shade { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+#stage.shaded #shade { display: block; }
+#sun {
+  position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; z-index: 3; display: none; cursor: grab; touch-action: none;
+  background: radial-gradient(circle, #fff7c2 30%, #ffd166 60%, transparent 62%); box-shadow: 0 0 18px #ffe9a0;
+}
+#sun:active { cursor: grabbing; }
+#stage.shaded #sun { display: block; }
+#lightSec[hidden] { display: none; }
+/* With shading on, the shaded copy is drawn underneath; the drawing itself stays clickable but invisible. */
+#stage.shaded #rig-wrap > :not(#rig-overlay) { opacity: 0; }
+#banner {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 2;
+  background: #111c; color: #fff; padding: 7px 14px; border-radius: 20px; font-size: 13px; pointer-events: none;
+  max-width: calc(100% - 32px); text-align: center;
+}
+#banner:empty { display: none; }
+#hint { position: absolute; left: 12px; bottom: 10px; color: #555b68; font-size: 12px; pointer-events: none; }
+aside { overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 4px 14px 30px; }
+aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 18px 0 8px; }
+.hint { color: var(--dim); font-size: 12.5px; margin: 0 0 10px; }
+.part {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; margin-bottom: 8px;
+}
+.part.sel { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc) inset; }
+.part .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.part .name { font-weight: 600; flex: 1; }
+.part select { max-width: 170px; padding: 3px 6px; font-size: 12.5px; }
+.part .pts { display: flex; gap: 6px; }
+.part .pts button { flex: 1; font-size: 12.5px; padding: 4px 6px; }
+.part .raised { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-top: 7px; font-size: 12.5px; color: var(--dim); }
+.part .raised label.check { font-size: 12.5px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.dot.p { background: var(--pivot); } .dot.e { background: var(--end); }
+.tick { color: var(--ok); } .miss { color: var(--warn); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.moves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.moves button { padding: 6px 4px; font-size: 13px; }
+.mouthKeys { display: flex; flex-wrap: wrap; gap: 4px; }
+.mouthKeys button { min-width: 28px; padding: 3px 6px; font-size: 12.5px; }
+.slider { display: grid; grid-template-columns: 92px 1fr 44px; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); margin-bottom: 4px; }
+.slider input { width: 100%; }
+.slider output { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+#saveMsg { font-size: 13px; margin-top: 8px; min-height: 20px; }
+#saveMsg.ok { color: var(--ok); } #saveMsg.err { color: var(--warn); }
+input[type=text] { width: 100%; }
+@media (max-width: 760px) {
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 50px 55vh auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  header .file, header label.check { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🦴 Character Joints</h1>
+  <span class="file" id="fileName"></span>
+  <span class="sp"></span>
+  <label class="check" id="shadeToggle" hidden title="Light him with his normal maps (from tools/normal-maps.html)"><input type="checkbox" id="shadeOn" checked>💡 Shading</label>
+  <label class="check"><input type="checkbox" id="showDots" checked>Show joints</label>
+  <button id="fitBtn" title="Fit the character in the window">⤢ Fit</button>
+  <button id="openBtn" title="Open another SVG drawing">📂 Open SVG…</button>
+  <input type="file" id="openFile" accept=".svg,image/svg+xml" hidden>
+</header>
+
+<main id="stage">
+  <canvas id="shade"></canvas>
+  <div id="sun" title="Drag to move the light"></div>
+  <div id="banner"></div>
+  <div id="hint">Scroll to zoom · drag the background to move around · drag a dot to adjust it · arrow keys nudge the last dot</div>
+</main>
+
+<aside>
+  <h2>1 · Joints</h2>
+  <p class="hint">For each part, set the <span class="dot p"></span><b>joint</b> it turns around (where it meets the body) and its <span class="dot e"></span><b>end</b> (hand, foot, top of head). Click a button, then click on the drawing. Drag dots to fine-tune them.</p>
+  <div id="parts"></div>
+  <div class="row">
+    <button id="guessBtn" title="Put all the dots at a rough first guess">✨ Guess all</button>
+    <label class="check">Faces
+      <select id="facing">
+        <option value="right">right →</option>
+        <option value="left">← left</option>
+        <option value="front">the viewer</option>
+      </select>
+    </label>
+  </div>
+
+  <h2>2 · Try it out</h2>
+  <div class="moves" id="moves"></div>
+  <div class="row" id="mouthRow" hidden><span class="hint" style="margin:0">Mouth:</span><span class="keys mouthKeys"></span>
+    <label class="check" title="The mouth he has when he isn't talking (and in pauses while talking)">Resting mouth <select id="restMouth"></select></label></div>
+  <div class="slider"><span>Speed</span><input type="range" id="speed" min="0.2" max="2" step="0.05" value="1"><output id="speedOut">1×</output></div>
+  <div class="slider"><span>Swing size</span><input type="range" id="swing" min="0.2" max="2" step="0.05" value="1"><output id="swingOut">1×</output></div>
+
+  <div id="lightSec" hidden>
+    <h2>💡 Light</h2>
+    <p class="hint">Drag the sun on the stage to move the light. The other light settings are in the normal-map tool.</p>
+    <div class="slider"><span>Light height</span><input type="range" id="lightZ" min="0.1" max="2" step="0.05" value="0.8"><output>0.8</output></div>
+    <div class="slider"><span>Reflected light</span><input type="range" id="lightBounce" min="0" max="1" step="0.05" value="0.5"><output>0.5</output></div>
+    <div class="slider"><span>Reflected width</span><input type="range" id="lightBounceWidth" min="0.05" max="1" step="0.05" value="0.5"><output>0.5</output></div>
+    <div class="slider"><span>Cast shadows</span><input type="range" id="lightShadow" min="0" max="1" step="0.05" value="0.5"><output>0.5</output></div>
+    <div class="row"><button id="saveLight">💾 Save light</button><span id="lightMsg" class="hint" style="margin:0"></span></div>
+  </div>
+
+  <h2>Pose by hand</h2>
+  <p class="hint">Turn each part yourself (in degrees) to check a pose.</p>
+  <div id="poseSliders"></div>
+
+  <h2>3 · Save</h2>
+  <div class="row"><label style="flex:1">Character name<input type="text" id="charName"></label></div>
+  <div class="row">
+    <button class="primary" id="saveBtn">💾 Save joints</button>
+    <button id="downloadBtn" title="Download the joints as a file instead">⬇ Download</button>
+  </div>
+  <div id="saveMsg"></div>
+</aside>
+
+<script>
+'use strict';
+const INK = 'http://www.inkscape.org/namespaces/inkscape', SVGNS = 'http://www.w3.org/2000/svg';
+const ROOT = new URL('../', location.href);   // the Cartoon Studio folder
+const PARTS = [
+  { key: 'armR', name: 'Right arm', joint: 'Shoulder', end: 'Hand', match: /right\s*arm/i },
+  { key: 'armL', name: 'Left arm', joint: 'Shoulder', end: 'Hand', match: /left\s*arm/i },
+  { key: 'legR', name: 'Right leg', joint: 'Hip', end: 'Foot', match: /right\s*leg/i },
+  { key: 'legL', name: 'Left leg', joint: 'Hip', end: 'Foot', match: /left\s*leg/i },
+  { key: 'head', name: 'Head', joint: 'Neck', end: 'Top of head', match: /^\s*(head|face)\s*$/i },
+];
+const SHORT = { armR: 'R shoulder', armL: 'L shoulder', legR: 'R hip', legL: 'L hip', head: 'Neck' };
+const $ = s => document.querySelector(s);
+const r2 = v => Math.round(v * 100) / 100;
+
+const st = {
+  svgPath: 'assets/denny.svg', name: 'Denny', facing: 'right',
+  parts: {},            // key -> { group: id, pivot: [x,y], end: [x,y] }
+  pose: {},             // key -> degrees (Pose by hand)
+  anim: 'rest', t: 0, speed: 1, swing: 1,
+  placing: null,        // { key, which: 'pivot' | 'end' }
+  sel: 'armR', last: null, showDots: true, dirty: false,
+};
+// When an arm is raised above the shoulder it can be mirrored (so the hand reads right way round)
+// and/or drawn in front of everything else.
+// For the head, "raised" means turned to look around.
+const RAISED_DEFAULT = { armR: { flip: true, front: true }, armL: { flip: true, front: false }, head: { flip: false, front: true } };
+const newPart = k => ({ group: '', pivot: null, end: null, ...(RAISED_DEFAULT[k] ? { raised: { ...RAISED_DEFAULT[k] } } : {}) });
+PARTS.forEach(p => { st.parts[p.key] = newPart(p.key); st.pose[p.key] = 0; });
+
+let svgSource = '', origViewBox = null, svg = null, wrap = null, overlay = null, groups = [], box = null, view = null;
+const orig = new Map(), toDrawing = new Map(), homeOf = new Map(), fronted = new Set();   // group -> original transform / parent→drawing matrix
+
+const slug = () => (st.name || 'character').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'character';
+const banner = t => { $('#banner').textContent = t || ''; };
+const labelOf = g => g.getAttributeNS(INK, 'label') || g.getAttribute('inkscape:label') || g.id;
+
+/* ---------- loading ---------- */
+async function boot() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('svg')) st.svgPath = q.get('svg');
+  st.name = q.get('name') || nameFromPath(st.svgPath);
+  buildPanel();
+  let text;
+  try {
+    const r = await fetch(new URL(st.svgPath, ROOT), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    text = await r.text();
+  } catch {
+    banner(`Couldn't load ${st.svgPath}. Click "📂 Open SVG…" to pick the drawing.`);
+    return;
+  }
+  loadSvg(text);
+  await loadRig();
+  loadShading();
+}
+const nameFromPath = p => { const b = p.split('/').pop().replace(/\.svg$/i, ''); return b.charAt(0).toUpperCase() + b.slice(1); };
+
+function loadSvg(text) {
+  svgSource = text;
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) { banner('That file is not a readable SVG drawing.'); return; }
+  svg = document.importNode(doc.documentElement, true);
+  origViewBox = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+  if (origViewBox.length !== 4) origViewBox = null;
+  svg.removeAttribute('width'); svg.removeAttribute('height');
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  $('#stage').querySelectorAll('svg').forEach(s => s.remove());
+  $('#stage').prepend(svg);
+  // Everything that's drawn goes into one wrapper, which bobs up and down during moves.
+  wrap = document.createElementNS(SVGNS, 'g'); wrap.id = 'rig-wrap';
+  for (const n of [...svg.childNodes]) {
+    if (n.nodeType === 1 && /^(defs|metadata|namedview|title|style)$/i.test(n.localName)) continue;
+    wrap.appendChild(n);
+  }
+  svg.appendChild(wrap);
+  groups = [...wrap.querySelectorAll('g')].filter(g => g.getAttributeNS(INK, 'groupmode') !== 'layer');
+  // Mouth shapes for lip sync: groups named "Mouth A" … "Mouth H", "Mouth X".
+  st.mouths = groups.map(g => ({ el: g, m: /^\s*mouth\s+([a-hx])\s*$/i.exec(labelOf(g)) })).filter(x => x.m)
+    .map(x => ({ key: x.m[1].toUpperCase(), el: x.el })).sort((a, b) => (a.key === 'X') - (b.key === 'X') || a.key.localeCompare(b.key));
+  const on = st.mouths.filter(m => getComputedStyle(m.el).display !== 'none');
+  const shown = on.find(m => m.key === 'X') || on[0] || st.mouths[0];   // resting mouth first
+  st.mouthDefault = shown ? shown.key : null; st.mouth = null; st.heldMouth = null;
+  st.restMouth = st.restMouth && st.mouths.some(m => m.key === st.restMouth) ? st.restMouth : st.mouthDefault;
+  setMouth(st.restMouth);   // and only that one
+  buildMouthButtons();
+  groups.forEach((g, i) => { if (!g.id) g.id = 'rig-g' + i; });
+  orig.clear(); toDrawing.clear(); homeOf.clear(); fronted.clear();
+  const inv = wrap.getScreenCTM().inverse();
+  for (const g of groups) {
+    orig.set(g, g.getAttribute('transform') || '');
+    homeOf.set(g, { parent: g.parentNode, next: g.nextSibling });
+    const m = inv.multiply(g.parentNode.getScreenCTM());
+    toDrawing.set(g, new DOMMatrix([m.a, m.b, m.c, m.d, m.e, m.f]));
+  }
+  const b = wrap.getBBox();
+  box = { x: b.x, y: b.y, w: b.width, h: b.height };
+  overlay = document.createElementNS(SVGNS, 'g'); overlay.id = 'rig-overlay';
+  wrap.appendChild(overlay);
+  fit();
+  fillGroupSelects();
+  $('#fileName').textContent = st.svgPath;
+  $('#charName').value = st.name;
+  banner('');
+}
+
+async function loadRig() {
+  let rig = null, from = '';
+  try {
+    const d = JSON.parse(localStorage.getItem('rig-draft:' + slug()) || 'null');
+    if (d && d.dirty) { rig = d.rig; from = 'draft'; }
+  } catch { /* no storage */ }
+  if (!rig) {
+    try {
+      const r = await fetch(new URL(`assets/rigs/${slug()}.rig.json`, ROOT), { cache: 'no-store' });
+      if (r.ok) { rig = await r.json(); from = 'file'; }
+    } catch { /* not saved yet */ }
+  }
+  if (rig) applyRig(rig);
+  else guessAll();
+  for (const p of PARTS) if (!st.parts[p.key].group) st.parts[p.key].group = guessGroup(p);
+  if (from === 'draft') { st.dirty = true; setSaveMsg('Your unsaved changes from last time are back. Remember to save.', 'err'); }
+  else if (from === 'file') setSaveMsg(`Loaded the saved joints (assets/rigs/${slug()}.rig.json).`, 'ok');
+  else setSaveMsg('Not saved yet. The dots are a first guess: move them to the right spots.', 'err');
+  refreshPanel(); draw();
+  requestAnimationFrame(tick);
+}
+
+function applyRig(rig) {
+  if (rig.facing) st.facing = rig.facing;
+  if (rig.restMouth && st.mouths && st.mouths.some(m => m.key === rig.restMouth)) { st.restMouth = rig.restMouth; setMouth(st.restMouth); $('#restMouth').value = st.restMouth; }
+  for (const p of PARTS) {
+    const s = rig.parts && rig.parts[p.key];
+    if (!s) continue;
+    let g = s.group && groups.find(x => x.id === s.group);
+    if (!g && s.groupLabel) g = groups.find(x => labelOf(x) === s.groupLabel);
+    st.parts[p.key] = { ...newPart(p.key), group: g ? g.id : '', pivot: s.pivot || null, end: s.end || null };
+    if (s.raised && st.parts[p.key].raised) st.parts[p.key].raised = { flip: !!s.raised.flip, front: !!s.raised.front };
+  }
+}
+
+/* ---------- guesses ---------- */
+const guessGroup = p => (groups.find(g => p.match.test(labelOf(g))) || {}).id || '';
+function boxOf(g) {   // the group's outline, in drawing coordinates
+  const b = g.getBBox(), m = wrap.getScreenCTM().inverse().multiply(g.getScreenCTM());
+  const pts = [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]
+    .map(([x, y]) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+function guessAll() {
+  const cx = box.x + box.w / 2;
+  for (const p of PARTS) {
+    const s = st.parts[p.key];
+    s.group = s.group || guessGroup(p);
+    const g = groupOf(p.key);
+    if (!g) continue;
+    resetTransforms();
+    const b = boxOf(g), mid = b.x + b.w / 2;
+    if (p.key === 'head') { s.pivot = [mid, b.y + b.h * 0.95]; s.end = [mid, b.y + b.h * 0.05]; }
+    else if (p.key.startsWith('arm')) {
+      const inner = mid < cx ? b.x + b.w * 0.85 : b.x + b.w * 0.15, outer = mid < cx ? b.x + b.w * 0.2 : b.x + b.w * 0.8;
+      s.pivot = [inner, b.y + b.h * 0.12]; s.end = [outer, b.y + b.h * 0.85];
+    } else { s.pivot = [mid, b.y + b.h * 0.08]; s.end = [mid, b.y + b.h * 0.95]; }
+    s.pivot = s.pivot.map(r2); s.end = s.end.map(r2);
+  }
+}
+const groupOf = k => (st.parts[k].group && svg) ? svg.getElementById(st.parts[k].group) : null;
+
+/* ---------- moving the parts ---------- */
+function resetTransforms() {
+  for (const g of groups) { const o = orig.get(g); if (o) g.setAttribute('transform', o); else g.removeAttribute('transform'); }
+  if (wrap) wrap.removeAttribute('transform');
+}
+// opts.raised: arms to treat as raised (use their "when raised" settings); opts.plant: feet stay on the ground.
+let poseR = {};   // part → how it's moved this frame, in drawing coordinates
+function pose(angles, bob, opts = {}) {
+  resetTransforms();
+  poseR = {};
+  bob = bob || 0;
+  wrap.setAttribute('transform', `translate(0 ${r2(bob)})`);
+  const raised = new Set(opts.raised || []), front = new Set();
+  for (const p of PARTS) {
+    const s = st.parts[p.key], g = groupOf(p.key), a = angles[p.key] || 0;
+    if (!g || !s.pivot) continue;
+    const up = raised.has(p.key) && s.raised, flip = up && s.raised.flip, plant = opts.plant && p.key.startsWith('leg') && bob;
+    if (up && s.raised.front) front.add(g);
+    if (Math.abs(a) < 1e-3 && !flip && !plant) continue;
+    // Turn around the joint (given in drawing coordinates), expressed in the group's own parent space.
+    const M = toDrawing.get(g), [px, py] = s.pivot;
+    let R = new DOMMatrix().translate(px, py).rotate(a);
+    if (flip) { const d = dirOf(p.key); R = R.rotate(d).scale(1, -1).rotate(-d); }   // mirror along the arm's own line
+    R = R.translate(-px, -py);
+    if (plant) R = new DOMMatrix().translate(0, -bob).multiply(R);                   // undo the body's bob
+    poseR[p.key] = R;
+    const L = M.inverse().multiply(R).multiply(M);
+    g.setAttribute('transform', `matrix(${[L.a, L.b, L.c, L.d, L.e, L.f].map(v => +v.toFixed(5)).join(' ')}) ${orig.get(g) || ''}`.trim());
+  }
+  setFront(front);
+}
+// Draw these groups on top of everything (last in their layer); put the others back where they were.
+function setFront(want) {
+  for (const g of [...fronted]) if (!want.has(g)) {
+    const h = homeOf.get(g);
+    h.parent.insertBefore(g, h.next && h.next.parentNode === h.parent ? h.next : null);
+    fronted.delete(g);
+  }
+  if ([...want].every(g => fronted.has(g))) return;
+  // The head goes up first, so a raised arm can still be drawn over it.
+  const head = groupOf('head');
+  for (const g of [...want].sort((a, b) => (b === head) - (a === head))) { g.parentNode.appendChild(g); fronted.add(g); }
+}
+const dirOf = k => { const s = st.parts[k]; return s.pivot && s.end ? Math.atan2(s.end[1] - s.pivot[1], s.end[0] - s.pivot[0]) * 180 / Math.PI : 90; };
+// +1 when turning clockwise swings this part away from the body's middle.
+const outward = k => { const s = st.parts[k]; return s.pivot && s.pivot[0] < box.x + box.w / 2 ? 1 : -1; };
+// How far to turn an arm (the outward way) so that it points straight up.
+function raise(k) {
+  const d = dirOf(k), o = outward(k);
+  return o > 0 ? ((-90 - d) % 360 + 360) % 360 : -(((d + 90) % 360 + 360) % 360);
+}
+
+const MOVES = {
+  rest:  { label: '🧍 Stand', fn: () => ({}) },
+  idle:  { label: '😌 Idle', fn: t => ({ armR: outward('armR') * (3 + 2 * Math.sin(t * 1.7)), armL: outward('armL') * (3 + 2 * Math.sin(t * 1.7 + 1)), head: 3 * Math.sin(t * 0.9), bob: box.h * 0.003 * Math.sin(t * 3.4), plant: true }) },
+  walk:  { label: '🚶 Walk', fn: (t, A) => walk(t * 2 * Math.PI * 0.9, 20 * A, 0.012) },
+  run:   { label: '🏃 Run', fn: (t, A) => walk(t * 2 * Math.PI * 1.5, 38 * A, 0.03) },
+  waveR: { label: '👋 Wave (R)', fn: (t, A) => ({ ...MOVES.idle.fn(t), armR: raise('armR') * 0.85 + 14 * A * Math.sin(t * 9), raised: ['armR'] }) },
+  waveL: { label: '👋 Wave (L)', fn: (t, A) => ({ ...MOVES.idle.fn(t), armL: raise('armL') * 0.85 + 14 * A * Math.sin(t * 9), raised: ['armL'] }) },
+  cheer: { label: '🙌 Cheer', fn: (t, A) => { const h = Math.abs(Math.sin(t * 4)); return { armR: raise('armR') * (0.75 + 0.15 * h * A), armL: raise('armL') * (0.75 + 0.15 * h * A), head: 4 * Math.sin(t * 4), bob: -box.h * 0.025 * h, raised: ['armR', 'armL'] }; } },
+  jump:  { label: '🦘 Jump', fn: jump },
+  talk:  { label: '🗣 Talk', fn: (t, A) => ({ ...MOVES.idle.fn(t), head: 3 * Math.sin(t * 2.1) + 2 * Math.sin(t * 5.3), mouth: talkMouth(t) }) },
+  look:  { label: '👀 Look around', fn: (t, A) => ({ ...MOVES.idle.fn(t), head: 6 * A * Math.sin(t * 1.4), raised: ['head'] }) },
+};
+// "Hi there! Oh, look… I'm Denny!" as Rhubarb might mouth it: [shape, seconds].
+const TALK = [['X', 0.35], ['C', 0.12], ['E', 0.1], ['B', 0.08], ['X', 0.06], ['B', 0.1], ['C', 0.12], ['X', 0.3],
+  ['E', 0.14], ['F', 0.1], ['X', 0.12], ['H', 0.1], ['F', 0.14], ['B', 0.1], ['X', 0.35],
+  ['C', 0.12], ['A', 0.08], ['B', 0.08], ['C', 0.12], ['B', 0.1], ['E', 0.08], ['D', 0.18], ['C', 0.1], ['X', 0.5],
+  ['G', 0.12], ['D', 0.16], ['A', 0.1], ['E', 0.14], ['B', 0.1], ['X', 0.6]];
+const TALK_LEN = TALK.reduce((n, [, d]) => n + d, 0);
+function talkMouth(t) {
+  let u = t % TALK_LEN;
+  for (const [k, d] of TALK) { if (u < d) return k === 'X' ? (st.restMouth || 'X') : k; u -= d; }
+  return st.restMouth || 'X';
+}
+function walk(ph, A, bobAmt) {
+  const s = Math.sin(ph);
+  // Legs swing opposite ways; each arm swings against the leg on its side.
+  // Each arm swings between where it hangs and a little further out, never in across the body
+  // (so the hands stay off the bib). Still opposite to the leg on its side.
+  const arm = (k, sw) => outward(k) * (3 + A * 0.8 * (0.5 + 0.5 * sw));
+  return { legR: A * s, legL: -A * s, armR: arm('armR', s), armL: arm('armL', -s), head: 1.5 * Math.sin(ph * 2), bob: box.h * bobAmt * Math.abs(s) };
+}
+function jump(t, A) {
+  const p = (t * 0.8) % 1;
+  if (p < 0.25) { const c = Math.sin(p / 0.25 * Math.PI); return { bob: box.h * 0.03 * c, armR: -outward('armR') * 12 * c, armL: -outward('armL') * 12 * c }; }
+  if (p < 0.75) { const a = Math.sin((p - 0.25) / 0.5 * Math.PI);
+    return { bob: -box.h * 0.12 * a * A, armR: raise('armR') * 0.7 * a, armL: raise('armL') * 0.7 * a, legR: outward('legR') * 10 * a, legL: outward('legL') * 10 * a, head: -4 * a }; }
+  const c = Math.sin((p - 0.75) / 0.25 * Math.PI);
+  return { bob: box.h * 0.025 * c };
+}
+
+/* ---------- shading with the normal maps from tools/normal-maps.html (when they exist) ----------
+   Each piece of the drawing is drawn on the graphics card with its own picture and normal map.
+   When a part turns (or flips), its normals turn with it, so the light stays put while he moves. */
+const shade = { on: true, ready: false, pieces: [], look: null };
+const LOOK_DEFAULT = { light: [-0.55, 0.6], lightZ: 0.8, strength: 0.7, ambient: 0.45, steps: 0, shine: 0.25, rim: 0.2, bounce: 0.5, bounceWidth: 0.5, bounceLines: 0.6, bounceColor: '#ffd9a8', shadow: 0.5, shadowLen: 8, shadowLenIn: 2.5 };
+const hashOf = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); };
+let sgl = null, sprog = null, sloc = {}, sbuf = null, lprog = null, lloc = {}, pprog = null, ploc = {}, pbuf = null, spa = 0;
+const fbos = {};   // off-screen pictures: 'col' (the shaded character) and 'lev' (which layer is on top)
+
+async function loadShading() {
+  shade.ready = false;
+  $('#stage').classList.remove('shaded');
+  $('#shadeToggle').hidden = true;
+  $('#lightSec').hidden = true;
+  const dir = `assets/rigs/${slug()}-normals/`;
+  let info;
+  try {
+    const r = await fetch(new URL(dir + 'normals.json', ROOT), { cache: 'no-store' });
+    if (!r.ok) return;
+    info = await r.json();
+  } catch { return; }
+  if (!initShadeGL()) return;
+  const layer = (groupOf('armR') || groupOf('legR') || groupOf('head') || {}).parentNode;
+  if (!layer) return;
+  const PXU = info.pixelsPerUnit || 6, b = info.drawingBox, W = Math.round(b.w * PXU), H = Math.round(b.h * PXU);
+  // The normal maps: one per moving part, one for the rest of the body.
+  const nmaps = {};
+  for (const [k, m] of Object.entries(info.maps || {})) {
+    if (k === 'all') continue;
+    try { nmaps[k] = { tex: texOf(await loadImage(new URL(dir + m.file + '?v=' + Date.now(), ROOT))), rect: m.rect }; } catch { continue; }
+    if (m.levels) {
+      try { nmaps[k].lev = { tex: texOf(await loadImage(new URL(dir + m.levels.file + '?v=' + Date.now(), ROOT)), true), rect: m.levels.rect }; } catch { /* no shadows from it */ }
+    }
+  }
+  if (!nmaps.body) return;
+  // Each piece's own picture, drawn from the drawing.
+  const ids = [...layer.children].filter(el => el.id && el.id !== 'rig-overlay' && getComputedStyle(el).display !== 'none').map(el => el.id);
+  shade.pieces = [];
+  for (const id of ids) {
+    const c = await renderPiece(id, b, W, H), cr = cropCanvas(c);
+    if (!cr) continue;
+    const key = PARTS.find(p => st.parts[p.key].group === id);
+    const part = key ? key.key : null;
+    shade.pieces.push({
+      id, part, tex: texOf(cr.canvas),
+      rect: [b.x + cr.px[0] / PXU, b.y + cr.px[1] / PXU, cr.px[2] / PXU, cr.px[3] / PXU],
+      nm: nmaps[part] || nmaps.body,
+      lev: (nmaps[part] || nmaps.body).lev || null,
+    });
+  }
+  // The head with each mouth, if the normal-map tool made them.
+  const mp = info.mouths && shade.pieces.find(p => p.id === info.mouths.piece);
+  if (mp && st.mouths.length) {
+    mp.variants = {};
+    for (const m of st.mouths) {
+      const v = info.mouths.variants && info.mouths.variants[m.key];
+      if (!v) continue;
+      try {
+        const cr = cropCanvas(await renderPiece(mp.id, b, W, H, m.key));
+        if (!cr) continue;
+        mp.variants[m.key] = {
+          tex: texOf(cr.canvas), rect: [b.x + cr.px[0] / PXU, b.y + cr.px[1] / PXU, cr.px[2] / PXU, cr.px[3] / PXU],
+          nm: { tex: texOf(await loadImage(new URL(dir + v.file + '?v=' + Date.now(), ROOT))), rect: v.rect },
+          lev: v.levels ? { tex: texOf(await loadImage(new URL(dir + v.levels.file + '?v=' + Date.now(), ROOT)), true), rect: v.levels.rect } : mp.lev,
+        };
+      } catch { /* that mouth falls back to the plain head */ }
+    }
+  }
+  shade.look = { ...LOOK_DEFAULT, ...(info.look || {}) };
+  shade.hasLevels = shade.pieces.some(p => p.lev);
+  $('#lightShadow').value = shade.look.shadow; $('#lightShadow').nextElementSibling.textContent = (+shade.look.shadow).toFixed(2);
+  $('#lightShadow').parentNode.hidden = !shade.hasLevels;
+  shade.layer = layer;
+  shade.box = b; shade.dir = dir;
+  $('#lightZ').value = shade.look.lightZ; $('#lightZ').nextElementSibling.textContent = (+shade.look.lightZ).toFixed(2);
+  $('#lightBounceWidth').value = shade.look.bounceWidth; $('#lightBounceWidth').nextElementSibling.textContent = (+shade.look.bounceWidth).toFixed(2);
+  $('#lightBounce').value = shade.look.bounce; $('#lightBounce').nextElementSibling.textContent = (+shade.look.bounce).toFixed(2);
+  $('#lightSec').hidden = false;
+  shade.ready = true;
+  $('#shadeToggle').hidden = false;
+  $('#stage').classList.toggle('shaded', shade.on);
+  if (info.svgHash && info.svgHash !== hashOf(svgSource)) {
+    banner('The drawing has changed since the normal maps were made. Open tools/normal-maps.html and save them again.');
+    setTimeout(() => banner(''), 7000);
+  }
+  drawShading();
+}
+const loadImage = url => new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+async function renderPiece(id, b, W, H, mouth) {
+  const doc = new DOMParser().parseFromString(svgSource, 'image/svg+xml'), root = doc.documentElement;
+  root.setAttribute('viewBox', `${b.x} ${b.y} ${b.w} ${b.h}`); root.setAttribute('width', W); root.setAttribute('height', H);
+  const el = doc.getElementById(id);
+  if (mouth) for (const m of st.mouths) { const g = doc.getElementById(m.el.id); if (g) g.setAttribute('style', (g.getAttribute('style') || '').replace(/display:[^;]*;?/g, '') + ';display:' + (m.key === mouth ? 'inline' : 'none')); }
+  for (const sib of el ? [...el.parentNode.children] : []) if (sib !== el) sib.setAttribute('style', (sib.getAttribute('style') || '') + ';display:none');
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
+  try {
+    const img = await loadImage(url);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    c.getContext('2d').drawImage(img, 0, 0, W, H);
+    return c;
+  } finally { URL.revokeObjectURL(url); }
+}
+function cropCanvas(c) {
+  const W = c.width, H = c.height, d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) return null;
+  x0 = Math.max(0, x0 - 1); y0 = Math.max(0, y0 - 1); x1 = Math.min(W - 1, x1 + 1); y1 = Math.min(H - 1, y1 + 1);
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  o.getContext('2d').drawImage(c, -x0, -y0);
+  return { canvas: o, px: [x0, y0, o.width, o.height] };
+}
+function initShadeGL() {
+  if (sgl) return true;
+  sgl = $('#shade').getContext('webgl', { premultipliedAlpha: true, alpha: true });
+  if (!sgl) return false;
+  const gl = sgl;
+  const vs = `attribute vec2 p; uniform mat3 M; varying vec2 dp;
+    void main() { dp = p; vec3 c = M * vec3(p, 1.0); gl_Position = vec4(c.xy, 0.0, 1.0); }`;
+  // Lighting as in tools/normal-maps.html, worked out in picture space (y pointing down).
+  const fs = `precision mediump float; varying vec2 dp;
+    uniform sampler2D alb, nrm; uniform vec4 aRect, nRect; uniform mat2 nTurn; uniform vec3 L;
+    uniform float strength, ambient, steps, shine, rim, bounce, bounceWidth, bounceLines; uniform vec3 bounceColor;
+    void main() {
+      vec4 a = texture2D(alb, (dp - aRect.xy) / aRect.zw);
+      if (a.a < 0.003) discard;
+      vec3 n = vec3(0.0, 0.0, 1.0);
+      vec2 nu = (dp - nRect.xy) / nRect.zw;
+      if (nu.x >= 0.0 && nu.y >= 0.0 && nu.x <= 1.0 && nu.y <= 1.0) {
+        vec4 t = texture2D(nrm, nu);
+        if (t.a > 0.02) { vec3 c = t.rgb / t.a; n = normalize(vec3(c.r * 2.0 - 1.0, 1.0 - c.g * 2.0, c.b * 2.0 - 1.0)); }
+      }
+      n = normalize(vec3(nTurn * n.xy, n.z));
+      float d = max(dot(n, L), 0.0);
+      if (steps > 0.5) d = floor(d * steps + 0.5) / steps;
+      float light = mix(1.0, ambient + (1.0 - ambient) * d * 1.25, strength);
+      vec3 h = normalize(L + vec3(0.0, 0.0, 1.0));
+      float sp = pow(max(dot(n, h), 0.0), 40.0) * shine;
+      if (steps > 0.5) sp = step(0.5, sp) * shine;
+      vec2 nxy = normalize(n.xy + 1e-5), lxy = normalize(L.xy + 1e-5);
+      float rm = pow(1.0 - clamp(n.z, 0.0, 1.0), 2.5) * rim * max(dot(nxy, lxy), 0.0);
+      // Reflected light on the edges leaning away from the light (and on the ink lines there).
+      float t0 = mix(0.55, 0.05, bounceWidth);
+      float rf = smoothstep(t0, t0 + 0.2, max(dot(n.xy, -lxy), 0.0)) * (1.0 - d);
+      if (steps > 0.5) rf = step(0.45, rf);
+      rf *= bounce * strength;
+      float inkiness = 1.0 - smoothstep(0.12, 0.35, dot(a.rgb / max(a.a, 0.001), vec3(0.3, 0.59, 0.11)));
+      vec3 col = a.rgb * light + a.rgb * bounceColor * rf * 1.6 + bounceColor * rf * bounceLines * inkiness * 2.0 * a.a;
+      gl_FragColor = vec4(col + vec3(1.0, 0.97, 0.88) * (sp + rm) * a.a, a.a);
+    }`;
+  const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  sprog = gl.createProgram(); gl.attachShader(sprog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(sprog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(sprog);
+  gl.useProgram(sprog);
+  for (const k of ['M', 'alb', 'nrm', 'aRect', 'nRect', 'nTurn', 'L', 'strength', 'ambient', 'steps', 'shine', 'rim', 'bounce', 'bounceWidth', 'bounceLines', 'bounceColor']) sloc[k] = gl.getUniformLocation(sprog, k);
+  sbuf = gl.createBuffer();
+  const pa = gl.getAttribLocation(sprog, 'p');
+  gl.bindBuffer(gl.ARRAY_BUFFER, sbuf); gl.enableVertexAttribArray(pa); gl.vertexAttribPointer(pa, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform1i(sloc.alb, 0); gl.uniform1i(sloc.nrm, 1);
+  spa = pa;
+  // Which layer is on top, for the posed character: red = stacking order within the drawing,
+  // green = which piece, blue = brought to the front (a raised arm, a turning head).
+  const lfs = `precision mediump float; varying vec2 dp;
+    uniform sampler2D alb, lvl; uniform vec4 aRect, lRect; uniform float rank;
+    void main() {
+      vec4 a = texture2D(alb, (dp - aRect.xy) / aRect.zw);
+      if (a.a < 0.5) discard;
+      vec2 lu = (dp - lRect.xy) / lRect.zw;
+      if (lu.x < 0.0 || lu.y < 0.0 || lu.x > 1.0 || lu.y > 1.0) discard;
+      vec4 l = texture2D(lvl, lu);
+      if (l.a < 0.5) discard;
+      gl_FragColor = vec4(l.r, l.g, rank, l.b > 0.5 ? 0.75 : 1.0);   // alpha 0.75: covers, but casts no shadow
+    }`;
+  lprog = gl.createProgram(); gl.attachShader(lprog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(lprog, sh(gl.FRAGMENT_SHADER, lfs));
+  gl.bindAttribLocation(lprog, pa, 'p'); gl.linkProgram(lprog);
+  for (const k of ['M', 'alb', 'lvl', 'aRect', 'lRect', 'rank']) lloc[k] = gl.getUniformLocation(lprog, k);
+  // Cast shadows, as in tools/normal-maps.html: darken a spot when a higher layer lies a little way towards the light.
+  const pvs = `attribute vec2 p; varying vec2 uv; void main() { uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+  const pfs = `precision mediump float; varying vec2 uv;
+    uniform sampler2D col, lev; uniform vec2 toLight, side; uniform float shadow, inner;
+    bool above(vec4 o, vec4 me) { return o.b > me.b + 0.001 || (abs(o.b - me.b) < 0.001 && o.r > me.r + 0.001); }
+    void main() {
+      vec4 c = texture2D(col, uv), me = texture2D(lev, uv);
+      if (shadow <= 0.0 || me.a < 0.5 || c.a < 0.01) { gl_FragColor = c; return; }
+      float sh = 0.0;
+      for (int r = -1; r <= 1; r++) {
+        float hit = 0.0;
+        for (int i = 1; i <= 40; i++) {
+          float t = float(i) / 40.0;
+          vec4 o = texture2D(lev, uv + toLight * t + side * float(r));
+          if (o.a > 0.9 && above(o, me)) {
+            float k = abs(o.g - me.g) < 0.01 ? t / inner : t;
+            if (k <= 1.0) hit = max(hit, 1.0 - smoothstep(0.55, 1.0, k));
+          }
+        }
+        sh += hit / 3.0;
+      }
+      gl_FragColor = vec4(c.rgb * (1.0 - shadow * sh * vec3(0.8, 0.95, 0.92)), c.a);
+    }`;
+  pprog = gl.createProgram(); gl.attachShader(pprog, sh(gl.VERTEX_SHADER, pvs)); gl.attachShader(pprog, sh(gl.FRAGMENT_SHADER, pfs));
+  gl.bindAttribLocation(pprog, pa, 'p'); gl.linkProgram(pprog);
+  for (const k of ['col', 'lev', 'toLight', 'side', 'shadow', 'inner']) ploc[k] = gl.getUniformLocation(pprog, k);
+  pbuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, pbuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.useProgram(sprog);
+  return true;
+}
+// An off-screen picture the size of the stage.
+function fboOf(name, w, h) {
+  const gl = sgl;
+  let f = fbos[name];
+  if (!f) {
+    f = fbos[name] = { tex: gl.createTexture(), fb: gl.createFramebuffer(), w: 0, h: 0 };
+    gl.bindTexture(gl.TEXTURE_2D, f.tex);
+    for (const [p, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, p, v);
+  }
+  if (f.w !== w || f.h !== h) {
+    gl.bindTexture(gl.TEXTURE_2D, f.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f.fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, f.tex, 0);
+    f.w = w; f.h = h;
+  }
+  return f;
+}
+function texOf(img, exact) {
+  const gl = sgl, t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, !exact);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, exact ? gl.NEAREST : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, exact ? gl.NEAREST : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+// The light's position is kept like the normal-map tool keeps it: relative to the middle of the
+// drawing, where ±1 is the drawing's edge (x to the right, y up).
+function placeSun() {
+  const b = shade.box, r = $('#stage').getBoundingClientRect(), m = svg.getScreenCTM();
+  const x = b.x + b.w / 2 + shade.look.light[0] * b.w / 2, y = b.y + b.h / 2 - shade.look.light[1] * b.h / 2;
+  $('#sun').style.left = (m.a * x + m.c * y + m.e - r.left) + 'px';
+  $('#sun').style.top = (m.b * x + m.d * y + m.f - r.top) + 'px';
+}
+function moveSun(e) {
+  const b = shade.box, p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+  const c = v => Math.max(-1.5, Math.min(1.5, v));
+  shade.look.light = [c((p.x - (b.x + b.w / 2)) / (b.w / 2)), c(-(p.y - (b.y + b.h / 2)) / (b.h / 2))].map(v => Math.round(v * 1000) / 1000);
+  lightChanged();
+}
+function lightChanged() { $('#lightMsg').textContent = 'Not saved yet.'; drawShading(); }
+async function saveLight() {
+  $('#lightMsg').textContent = 'Saving…';
+  try {
+    // Keep everything else in normals.json as it is; only the light changes.
+    const info = await (await fetch(new URL(shade.dir + 'normals.json', ROOT), { cache: 'no-store' })).json();
+    info.look = { ...LOOK_DEFAULT, ...(info.look || {}), light: shade.look.light, lightZ: shade.look.lightZ, bounce: shade.look.bounce, bounceWidth: shade.look.bounceWidth, shadow: shade.look.shadow };
+    const data = 'data:application/json,' + encodeURIComponent(JSON.stringify(info, null, 2));
+    let ok = false;
+    for (const base of [ROOT.href, 'http://localhost:5173/']) {
+      try {
+        const r = await fetch(new URL('api/rig-file', base), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: slug(), kind: 'normals', file: 'normals.json', data }) });
+        if (r.ok) { ok = true; break; }
+      } catch { /* try the next way */ }
+    }
+    $('#lightMsg').textContent = ok ? '✓ Saved' : 'Couldn\'t save: is the Cartoon Studio server running?';
+  } catch { $('#lightMsg').textContent = 'Couldn\'t save the light.'; }
+}
+
+function drawShading() {
+  if (!shade.ready || !shade.on || !sgl) return;
+  const gl = sgl, cv = $('#shade'), r = $('#stage').getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  const cw = Math.round(r.width * dpr), ch = Math.round(r.height * dpr);
+  if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+  const fCol = fboOf('col', cw, ch), fLev = fboOf('lev', cw, ch);
+  gl.viewport(0, 0, cw, ch); gl.clearColor(0, 0, 0, 0);
+  // Drawing coordinates → screen (includes zoom, pan and the body's bob) → graphics card's -1…1 space.
+  const m = wrap.getScreenCTM();
+  const S = new DOMMatrix([m.a, m.b, m.c, m.d, m.e - r.left, m.f - r.top]);
+  const C = new DOMMatrix([2 / r.width, 0, 0, -2 / r.height, -1, 1]).multiply(S);
+  const lk = shade.look, z = lk.lightZ, ll = Math.hypot(lk.light[0], lk.light[1], z) || 1;
+  const byId = Object.fromEntries(shade.pieces.map(p => [p.id, p]));
+  // The head's picture and maps for the mouth showing right now.
+  const pick = p => (p.variants && p.variants[st.mouth]) ? { ...p, ...p.variants[st.mouth] } : p;
+  const order = [...shade.layer.children].map(el => [el, byId[el.id] && pick(byId[el.id])]).filter(([, p]) => p);
+  const quadOf = p => { const [x, y, w, h] = p.rect; gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x, y, x + w, y, x, y + h, x + w, y + h]), gl.DYNAMIC_DRAW); };
+  const moveOf = p => (p.part && poseR[p.part]) || new DOMMatrix();
+  gl.bindBuffer(gl.ARRAY_BUFFER, sbuf); gl.vertexAttribPointer(spa, 2, gl.FLOAT, false, 0, 0);
+  // 1. Which layer is on top at each spot, for the pose as it is right now.
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fLev.fb); gl.clear(gl.COLOR_BUFFER_BIT); gl.disable(gl.BLEND);
+  if (shade.hasLevels && lk.shadow > 0) {
+    gl.useProgram(lprog); gl.uniform1i(lloc.alb, 0); gl.uniform1i(lloc.lvl, 2);
+    const kids = [...shade.layer.children];
+    for (const [el, p] of order) {
+      if (!p.lev) continue;
+      const M = C.multiply(moveOf(p));
+      gl.uniformMatrix3fv(lloc.M, false, [M.a, M.b, 0, M.c, M.d, 0, M.e, M.f, 1]);
+      quadOf(p);
+      gl.uniform4f(lloc.aRect, ...p.rect); gl.uniform4f(lloc.lRect, ...p.lev.rect);
+      gl.uniform1f(lloc.rank, fronted.has(el) ? (1 + kids.indexOf(el)) / 255 : 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, p.tex);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, p.lev.tex);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+  }
+  // 2. The shaded character, off-screen.
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fCol.fb); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(sprog);
+  gl.uniform3f(sloc.L, lk.light[0] / ll, -lk.light[1] / ll, z / ll);
+  for (const k of ['strength', 'ambient', 'steps', 'shine', 'rim', 'bounce', 'bounceWidth', 'bounceLines']) gl.uniform1f(sloc[k], lk[k]);
+  const bc = lk.bounceColor || '#ffd9a8';
+  gl.uniform3f(sloc.bounceColor, parseInt(bc.slice(1, 3), 16) / 255, parseInt(bc.slice(3, 5), 16) / 255, parseInt(bc.slice(5, 7), 16) / 255);
+  placeSun();
+  // Back to front, in the drawing's current order (raised arms and a turning head may have moved to the front).
+  for (const [, p] of order) {
+    const R = moveOf(p), M = C.multiply(R);
+    gl.uniformMatrix3fv(sloc.M, false, [M.a, M.b, 0, M.c, M.d, 0, M.e, M.f, 1]);
+    gl.uniformMatrix2fv(sloc.nTurn, false, [R.a, R.b, R.c, R.d]);
+    const [x, y, w, h] = p.rect;
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x, y, x + w, y, x, y + h, x + w, y + h]), gl.DYNAMIC_DRAW);
+    gl.uniform4f(sloc.aRect, x, y, w, h);
+    gl.uniform4f(sloc.nRect, ...p.nm.rect);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, p.tex);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, p.nm.tex);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+  // 3. Onto the screen, with cast shadows. Their length is in drawing units, longer as the light gets lower.
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.BLEND); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(pprog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, pbuf); gl.vertexAttribPointer(spa, 2, gl.FLOAT, false, 0, 0);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, fCol.tex);
+  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, fLev.tex);
+  gl.uniform1i(ploc.col, 3); gl.uniform1i(ploc.lev, 4);
+  const [lx, ly] = lk.light, flat = Math.hypot(lx, ly), unitPx = Math.hypot(S.a, S.b) * dpr;
+  const lenPx = Math.min(lk.shadowLen * unitPx * flat / Math.max(z, 0.05), lk.shadowLen * unitPx * 4);
+  // In the off-screen pictures "up" is +y, and the light's y already points up.
+  gl.uniform2f(ploc.toLight, flat ? lx / flat * lenPx / cw : 0, flat ? ly / flat * lenPx / ch : 0);
+  gl.uniform2f(ploc.side, flat ? -ly / flat * 1.5 * dpr / cw : 0, flat ? lx / flat * 1.5 * dpr / ch : 0);
+  gl.uniform1f(ploc.shadow, shade.hasLevels ? lk.shadow : 0);
+  gl.uniform1f(ploc.inner, Math.min(1, lk.shadowLenIn / lk.shadowLen));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+let lastT = 0;
+function tick(now) {
+  requestAnimationFrame(tick);
+  const dt = Math.min(0.1, (now - (lastT || now)) / 1000); lastT = now;
+  if (svg && box) {
+    st.t += dt * st.speed;
+    let a;
+    if (st.anim === 'pose') a = { ...st.pose, raised: [...['armR', 'armL'].filter(k => Math.abs(st.pose[k]) > 90), ...(st.pose.head ? ['head'] : [])] };
+    else a = MOVES[st.anim].fn(st.t, st.swing);
+    // Talk picks the mouth; otherwise the mouth chosen with the buttons, or the one in the drawing.
+    setMouth(a.mouth || st.heldMouth || st.restMouth || st.mouthDefault);
+    if (st.anim !== 'rest') { pose(a, a.bob, a); drawOverlay(a); }
+    else if (st.needsRest) { pose({}, 0); drawOverlay({}); }
+    st.needsRest = false;
+    if (shade.ready && shade.on) drawShading();
+  }
+}
+function setMouth(key) {
+  if (!st.mouths || !st.mouths.length || !key || key === st.mouth) return;
+  for (const m of st.mouths) m.el.style.display = m.key === key ? 'inline' : 'none';
+  st.mouth = key;
+}
+function buildMouthButtons() {
+  const row = $('#mouthRow');
+  row.hidden = !st.mouths.length;
+  row.querySelector('.keys').innerHTML = st.mouths.map(m => `<button data-mouth="${m.key}" title="${MOUTH_TIPS[m.key] || ''}">${m.key}</button>`).join('');
+  markMouthButtons();
+  $('#restMouth').innerHTML = st.mouths.map(m => `<option value="${m.key}">${m.key}${MOUTH_TIPS[m.key] ? ' (' + MOUTH_TIPS[m.key] + ')' : ''}</option>`).join('');
+  $('#restMouth').value = st.restMouth || st.mouthDefault || '';
+}
+const MOUTH_TIPS = { A: 'M, B, P', B: 'K, S, T, EE', C: 'EH, AE', D: 'AA', E: 'AO, ER', F: 'OO, W', G: 'F, V', H: 'L', X: 'resting' };
+function markMouthButtons() { document.querySelectorAll('[data-mouth]').forEach(b => b.classList.toggle('on', b.dataset.mouth === st.heldMouth)); }
+function setAnim(name) {
+  st.anim = name; st.t = 0; st.needsRest = true;
+  document.querySelectorAll('#moves button').forEach(b => b.classList.toggle('on', b.dataset.move === name));
+  if (name !== 'pose') { PARTS.forEach(p => { st.pose[p.key] = 0; }); syncPoseSliders(); }
+}
+
+/* ---------- the dots ---------- */
+function upp() {   // drawing units per screen pixel
+  const r = svg.getBoundingClientRect();
+  return Math.max(view.w / r.width, view.h / r.height);
+}
+function draw() { drawOverlay(st.anim === 'rest' ? {} : null); }
+function drawOverlay(angles) {
+  if (!overlay) return;
+  overlay.replaceChildren();
+  if (!st.showDots) return;
+  const u = upp(), mk = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); overlay.appendChild(e); return e; };
+  for (const p of PARTS) {
+    const s = st.parts[p.key], sel = st.sel === p.key;
+    if (!s.pivot) continue;
+    let end = s.end;
+    const a = angles ? angles[p.key] || 0 : 0;
+    if (end && a) {   // the end dot follows the part as it turns
+      const r = a * Math.PI / 180, dx = end[0] - s.pivot[0], dy = end[1] - s.pivot[1];
+      end = [s.pivot[0] + dx * Math.cos(r) - dy * Math.sin(r), s.pivot[1] + dx * Math.sin(r) + dy * Math.cos(r)];
+    }
+    if (end) {
+      mk('line', { x1: s.pivot[0], y1: s.pivot[1], x2: end[0], y2: end[1], stroke: sel ? '#4da3ff' : '#000', 'stroke-opacity': sel ? 0.9 : 0.35, 'stroke-width': 2 * u, 'stroke-dasharray': `${5 * u} ${4 * u}` });
+      mk('circle', { cx: end[0], cy: end[1], r: (sel ? 7 : 6) * u, fill: '#ffd166', stroke: '#000', 'stroke-width': 1.5 * u, 'data-k': p.key, 'data-w': 'end', style: 'cursor:grab' });
+    }
+    mk('circle', { cx: s.pivot[0], cy: s.pivot[1], r: (sel ? 8 : 7) * u, fill: '#ff4d6d', stroke: sel ? '#4da3ff' : '#000', 'stroke-width': (sel ? 3 : 1.5) * u, 'data-k': p.key, 'data-w': 'pivot', style: 'cursor:grab' });
+    const t = mk('text', { x: s.pivot[0] + 10 * u, y: s.pivot[1] - 9 * u, 'font-size': 12 * u, 'font-family': 'Segoe UI, sans-serif', 'font-weight': 700, fill: '#fff', stroke: '#000', 'stroke-width': 3 * u, 'paint-order': 'stroke', style: 'pointer-events:none' });
+    t.textContent = SHORT[p.key];
+  }
+  // Highlight the selected part.
+  for (const g of groups) g.style.filter = '';
+  const g = groupOf(st.sel);
+  if (g) g.style.filter = `drop-shadow(0 0 ${1.5 * u}px #4da3ff) drop-shadow(0 0 ${1.5 * u}px #4da3ff)`;
+}
+
+/* ---------- view: fit, zoom, pan ---------- */
+function setView() { svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`); draw(); }
+function fit() {
+  const m = Math.max(box.w, box.h) * 0.08;
+  view = { x: box.x - m, y: box.y - m, w: box.w + 2 * m, h: box.h + 2 * m };
+  setView();
+}
+const toDrawingPt = e => { const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(wrap.getScreenCTM().inverse()); return [p.x, p.y]; };
+const toViewPt = e => { const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse()); return [p.x, p.y]; };
+
+let drag = null;
+$('#stage').addEventListener('pointerdown', e => {
+  if (!svg || e.button > 0) return;
+  const k = e.target.getAttribute && e.target.getAttribute('data-k');
+  if (st.placing) {
+    stopForEditing();
+    const { key, which } = st.placing;
+    st.parts[key][which] = toDrawingPt(e).map(r2);
+    st.last = { key, which };
+    st.placing = which === 'pivot' && !st.parts[key].end ? { key, which: 'end' } : null;
+    changed(); updatePlacing();
+    return;
+  }
+  if (k) {
+    stopForEditing();
+    st.sel = k; st.last = { key: k, which: e.target.getAttribute('data-w') };
+    drag = { kind: 'dot', ...st.last };
+  } else {
+    const hit = PARTS.find(p => { const g = groupOf(p.key); return g && g.contains(e.target); });
+    if (hit) st.sel = hit.key;
+    drag = { kind: 'pan', x: e.clientX, y: e.clientY, v: { ...view }, u: upp() };
+    $('#stage').classList.add('panning');
+  }
+  svg.setPointerCapture(e.pointerId);
+  refreshPanel(); draw();
+});
+$('#stage').addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (drag.kind === 'dot') { st.parts[drag.key][drag.which] = toDrawingPt(e).map(r2); draw(); }
+  else { view.x = drag.v.x - (e.clientX - drag.x) * drag.u; view.y = drag.v.y - (e.clientY - drag.y) * drag.u; setView(); }
+});
+const endDrag = () => { if (drag && drag.kind === 'dot') changed(); drag = null; $('#stage').classList.remove('panning'); };
+$('#stage').addEventListener('pointerup', endDrag);
+$('#stage').addEventListener('pointercancel', endDrag);
+$('#stage').addEventListener('wheel', e => {
+  if (!svg) return;
+  e.preventDefault();
+  const f = Math.pow(1.0015, e.deltaY), [px, py] = toViewPt(e);
+  const w = Math.min(Math.max(view.w * f, box.w * 0.05), box.w * 6), k = w / view.w;
+  view = { x: px - (px - view.x) * k, y: py - (py - view.y) * k, w: view.w * k, h: view.h * k };
+  setView();
+}, { passive: false });
+addEventListener('resize', () => svg && draw());
+addEventListener('keydown', e => {
+  if (e.target.matches('input[type=text], select')) return;
+  if (e.key === 'Escape' && st.placing) { st.placing = null; updatePlacing(); return; }
+  const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (d && st.last) {
+    e.preventDefault(); stopForEditing();
+    const pt = st.parts[st.last.key][st.last.which], step = (e.shiftKey ? 8 : 1) * upp();
+    if (pt) { st.parts[st.last.key][st.last.which] = [r2(pt[0] + d[0] * step), r2(pt[1] + d[1] * step)]; changed(); }
+  }
+});
+// Moving dots is done on the standing pose, so stop any move first.
+function stopForEditing() { if (st.anim !== 'rest') setAnim('rest'); pose({}, 0); }
+
+/* ---------- panel ---------- */
+function buildPanel() {
+  $('#parts').innerHTML = PARTS.map(p => `
+    <div class="part" data-k="${p.key}">
+      <div class="top"><span class="name">${p.name}</span><select data-group="${p.key}" title="Which group in the drawing is this part"></select></div>
+      <div class="pts">
+        <button data-place="${p.key}" data-w="pivot"><span class="dot p"></span>${p.joint} <span class="st"></span></button>
+        <button data-place="${p.key}" data-w="end"><span class="dot e"></span>${p.end} <span class="st"></span></button>
+      </div>
+      ${RAISED_DEFAULT[p.key] ? `<div class="raised">${p.key === 'head' ? 'When looking around:' : `When raised:
+        <label class="check"><input type="checkbox" data-raised="${p.key}" data-opt="flip">Flip</label>`}
+        <label class="check"><input type="checkbox" data-raised="${p.key}" data-opt="front">In front of everything</label></div>` : ''}
+    </div>`).join('');
+  $('#parts').addEventListener('click', e => {
+    const b = e.target.closest('[data-place]'), card = e.target.closest('.part');
+    if (card) st.sel = card.dataset.k;
+    if (b) {
+      const key = b.dataset.place, which = b.dataset.w;
+      st.placing = st.placing && st.placing.key === key && st.placing.which === which ? null : { key, which };
+      stopForEditing();
+      updatePlacing();
+    }
+    refreshPanel(); draw();
+  });
+  $('#parts').addEventListener('change', e => {
+    const k = e.target.dataset.group;
+    if (k) { stopForEditing(); st.parts[k].group = e.target.value; st.sel = k; changed(); }
+    const rk = e.target.dataset.raised;
+    if (rk) { st.parts[rk].raised[e.target.dataset.opt] = e.target.checked; st.sel = rk; changed(); }
+  });
+  $('#moves').innerHTML = Object.entries(MOVES).map(([k, m]) => `<button data-move="${k}">${m.label}</button>`).join('');
+  $('#restMouth').addEventListener('change', e => { st.restMouth = e.target.value; changed(); });
+  $('#mouthRow').addEventListener('click', e => {
+    const b = e.target.closest('[data-mouth]'); if (!b) return;
+    st.heldMouth = st.heldMouth === b.dataset.mouth ? null : b.dataset.mouth;   // click again to go back
+    if (st.anim === 'talk') setAnim('rest');
+    markMouthButtons();
+  });
+  $('#moves').addEventListener('click', e => { const b = e.target.closest('[data-move]'); if (b) { st.placing = null; updatePlacing(); setAnim(b.dataset.move); } });
+  $('#poseSliders').innerHTML = PARTS.map(p => `<div class="slider"><span>${p.name}</span><input type="range" min="-180" max="180" step="1" value="0" data-pose="${p.key}"><output>0°</output></div>`).join('')
+    + '<div class="row"><button id="poseReset">Reset pose</button></div>';
+  $('#poseSliders').addEventListener('input', e => {
+    const k = e.target.dataset.pose;
+    if (!k) return;
+    st.pose[k] = +e.target.value; e.target.nextElementSibling.textContent = e.target.value + '°';
+    st.sel = k;
+    if (st.anim !== 'pose') { st.anim = 'pose'; document.querySelectorAll('#moves button').forEach(b => b.classList.remove('on')); }
+    refreshPanel();
+  });
+  $('#poseSliders').addEventListener('click', e => { if (e.target.id === 'poseReset') setAnim('rest'); });
+  $('#speed').addEventListener('input', e => { st.speed = +e.target.value; $('#speedOut').textContent = st.speed.toFixed(2).replace(/0$/, '') + '×'; });
+  $('#swing').addEventListener('input', e => { st.swing = +e.target.value; $('#swingOut').textContent = st.swing.toFixed(2).replace(/0$/, '') + '×'; });
+  $('#facing').addEventListener('change', e => { st.facing = e.target.value; changed(); });
+  $('#guessBtn').addEventListener('click', () => {
+    if (Object.values(st.parts).some(s => s.pivot) && !confirm('Move all the dots back to a rough guess?')) return;
+    stopForEditing(); PARTS.forEach(p => { st.parts[p.key].pivot = st.parts[p.key].end = null; }); guessAll(); changed();
+  });
+  $('#showDots').addEventListener('change', e => { st.showDots = e.target.checked; draw(); });
+  $('#fitBtn').addEventListener('click', () => svg && fit());
+  $('#sun').addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault();
+    $('#sun').setPointerCapture(e.pointerId);
+    const move = ev => moveSun(ev), up = () => { $('#sun').removeEventListener('pointermove', move); $('#sun').removeEventListener('pointerup', up); };
+    $('#sun').addEventListener('pointermove', move); $('#sun').addEventListener('pointerup', up);
+  });
+  $('#lightZ').addEventListener('input', e => { shade.look.lightZ = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(2); lightChanged(); });
+  $('#lightBounceWidth').addEventListener('input', e => { shade.look.bounceWidth = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(2); lightChanged(); });
+  $('#lightShadow').addEventListener('input', e => { shade.look.shadow = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(2); lightChanged(); });
+  $('#lightBounce').addEventListener('input', e => { shade.look.bounce = +e.target.value; e.target.nextElementSibling.textContent = (+e.target.value).toFixed(2); lightChanged(); });
+  $('#saveLight').addEventListener('click', saveLight);
+  $('#shadeOn').addEventListener('change', e => { shade.on = e.target.checked; $('#stage').classList.toggle('shaded', shade.on && shade.ready); drawShading(); });
+  $('#openBtn').addEventListener('click', () => $('#openFile').click());
+  $('#openFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    st.svgPath = 'assets/' + f.name; st.name = nameFromPath(f.name);
+    PARTS.forEach(p => { st.parts[p.key] = newPart(p.key); });
+    setAnim('rest'); loadSvg(await f.text()); await loadRig(); loadShading();
+    e.target.value = '';
+  });
+  $('#charName').addEventListener('change', e => { st.name = e.target.value.trim() || st.name; changed(); });
+  $('#saveBtn').addEventListener('click', save);
+  $('#downloadBtn').addEventListener('click', download);
+  setAnim('rest');
+}
+function fillGroupSelects() {
+  const opts = '<option value="">(none)</option>' + groups.map(g => `<option value="${g.id}">${esc(labelOf(g))}</option>`).join('');
+  document.querySelectorAll('[data-group]').forEach(s => { s.innerHTML = opts; });
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function refreshPanel() {
+  $('#facing').value = st.facing;
+  for (const p of PARTS) {
+    const s = st.parts[p.key], card = document.querySelector(`.part[data-k="${p.key}"]`);
+    card.classList.toggle('sel', st.sel === p.key);
+    card.querySelector('select').value = s.group;
+    card.querySelectorAll('[data-raised]').forEach(c => { c.checked = !!(s.raised && s.raised[c.dataset.opt]); });
+    for (const w of ['pivot', 'end']) {
+      const b = card.querySelector(`[data-w="${w}"]`);
+      b.querySelector('.st').innerHTML = s[w] ? '<span class="tick">✓</span>' : '<span class="miss">set</span>';
+      b.classList.toggle('on', !!(st.placing && st.placing.key === p.key && st.placing.which === w));
+    }
+  }
+}
+function updatePlacing() {
+  $('#stage').classList.toggle('placing', !!st.placing);
+  if (st.placing) {
+    const p = PARTS.find(x => x.key === st.placing.key);
+    st.sel = p.key;
+    banner(`Click where the ${p.name.toLowerCase()}'s ${(st.placing.which === 'pivot' ? p.joint : p.end).toLowerCase()} is · Esc to cancel`);
+  } else banner('');
+  refreshPanel(); draw();
+}
+function syncPoseSliders() {
+  document.querySelectorAll('[data-pose]').forEach(i => { i.value = st.pose[i.dataset.pose]; i.nextElementSibling.textContent = i.value + '°'; });
+}
+
+/* ---------- saving ---------- */
+function changed() {
+  st.dirty = true;
+  try { localStorage.setItem('rig-draft:' + slug(), JSON.stringify({ dirty: true, rig: buildRig() })); } catch { /* no storage */ }
+  setSaveMsg('Unsaved changes.', 'err');
+  refreshPanel(); draw();
+}
+function setSaveMsg(t, cls) { const m = $('#saveMsg'); m.textContent = t; m.className = cls || ''; }
+function buildRig() {
+  const parts = {};
+  for (const p of PARTS) {
+    const s = st.parts[p.key], g = groupOf(p.key);
+    const len = s.pivot && s.end ? Math.hypot(s.end[0] - s.pivot[0], s.end[1] - s.pivot[1]) : null;
+    parts[p.key] = {
+      name: p.name, group: s.group || null, groupLabel: g ? labelOf(g) : null,
+      joint: p.joint.toLowerCase(), pivot: s.pivot, endName: p.end.toLowerCase(), end: s.end,
+      restAngle: s.pivot && s.end ? r2(dirOf(p.key)) : null, length: len === null ? null : r2(len),
+      outward: s.pivot && box ? outward(p.key) : null,
+      ...(s.raised ? { raised: { ...s.raised } } : {}),
+    };
+  }
+  return {
+    app: 'CartoonStudio-rig', version: 1, character: st.name, svg: st.svgPath, facing: st.facing, restMouth: st.restMouth || null,
+    units: 'SVG user units of the drawing (its viewBox)', viewBox: origViewBox,
+    drawingBox: box ? { x: r2(box.x), y: r2(box.y), w: r2(box.w), h: r2(box.h) } : null,
+    notes: 'pivot = the point the part turns around; end = hand / foot / top of head. restAngle = direction from pivot to end in degrees (0 = right, 90 = down). outward = +1 if turning clockwise swings the part away from the body. raised = what to do when an arm is lifted above the shoulder: flip (mirror it along its own line) and/or front (draw it in front of everything). Right/left follow the group names in the drawing.',
+    parts,
+    drawOrder: groups.map(g => ({ id: g.id, label: labelOf(g) })),   // back to front
+    savedAt: new Date().toISOString(),
+  };
+}
+async function save() {
+  const missing = PARTS.filter(p => !st.parts[p.key].pivot || !st.parts[p.key].end).map(p => p.name);
+  if (missing.length && !confirm(`Not set yet: ${missing.join(', ')}. Save anyway?`)) return;
+  const body = JSON.stringify({ name: slug(), rig: buildRig() });
+  for (const base of [ROOT.href, 'http://localhost:5173/']) {
+    try {
+      const r = await fetch(new URL('api/rig', base), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (!r.ok) continue;
+      const j = await r.json();
+      st.dirty = false;
+      try { localStorage.removeItem('rig-draft:' + slug()); } catch { /* fine */ }
+      setSaveMsg(`✓ Saved to ${j.file}`, 'ok');
+      return;
+    } catch { /* try the next way */ }
+  }
+  setSaveMsg('The Cartoon Studio server isn\'t running, so the file was downloaded instead. Put it in assets/rigs/.', 'err');
+  download();
+}
+function download() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(buildRig(), null, 2)], { type: 'application/json' }));
+  a.download = slug() + '.rig.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+addEventListener('beforeunload', e => { if (st.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+boot();
+</script>
+</body>
+</html>

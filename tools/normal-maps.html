@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Normal Maps</title>
+<link rel="icon" href="../assets/smiley.svg">
+<style>
+:root {
+  --bg: #16181d; --panel: #1f2229; --panel2: #262a33; --line: #323745; --text: #e6e8ee; --dim: #9aa1b0;
+  --acc: #4da3ff; --ok: #3ecf8e; --warn: #ffb547;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+  display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: 50px minmax(0, 1fr);
+}
+header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+header .file { color: var(--dim); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header .sp { flex: 1; }
+button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+button:hover { border-color: var(--acc); }
+button.primary { background: var(--acc); border-color: var(--acc); color: #071422; font-weight: 600; }
+button.on { background: #17406b; border-color: var(--acc); }
+#stage {
+  position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 16px; min-width: 0;
+  background: #8a8f9a; touch-action: none; cursor: crosshair;
+}
+#stage.dark { background: #2a2d35; }
+#stage canvas { max-width: 100%; max-height: 100%; display: block; }
+#sun {
+  position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, #fff7c2 30%, #ffd166 60%, transparent 62%); box-shadow: 0 0 18px #ffe9a0;
+}
+#busy { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); background: #111c; color: #fff; padding: 7px 14px; border-radius: 20px; font-size: 13px; pointer-events: none; }
+#busy:empty { display: none; }
+#hint { position: absolute; left: 12px; bottom: 10px; color: #e8eaf0cc; font-size: 12px; pointer-events: none; text-shadow: 0 1px 2px #0008; }
+aside { overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 4px 14px 30px; }
+aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 18px 0 8px; }
+.hint { color: var(--dim); font-size: 12.5px; margin: 0 0 10px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.slider { display: grid; grid-template-columns: 104px 1fr 40px; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); margin-bottom: 4px; }
+.slider input { width: 100%; }
+.slider output { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+label.check { display: inline-flex; gap: 6px; align-items: center; color: var(--dim); }
+#layerList { max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+#layerList table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#layerList th { position: sticky; top: 0; background: var(--panel2); color: var(--dim); font-weight: 600; font-size: 11px; padding: 5px 2px; text-align: center; border-bottom: 1px solid var(--line); }
+#layerList th:first-child, #layerList td:first-child { text-align: left; padding-left: 8px; }
+#layerList td { padding: 1px 2px; text-align: center; color: var(--dim); }
+#layerList tr.grp td { color: var(--text); font-weight: 600; padding-top: 6px; }
+#layerList input { margin: 2px; }
+#saveMsg { font-size: 13px; margin-top: 8px; min-height: 20px; }
+#saveMsg.ok { color: var(--ok); } #saveMsg.err { color: var(--warn); }
+@media (max-width: 760px) {
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 50px 55vh auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>💡 Normal Maps</h1>
+  <span class="file" id="fileName"></span>
+  <span class="sp"></span>
+  <label class="check"><input type="checkbox" id="darkBg">Dark background</label>
+</header>
+
+<main id="stage">
+  <canvas id="view"></canvas>
+  <div id="sun"></div>
+  <div id="busy">Loading…</div>
+  <div id="hint">Drag on the picture to move the light</div>
+</main>
+
+<aside>
+  <h2>View</h2>
+  <div class="seg" id="views">
+    <button data-view="shaded" class="on">💡 Shaded</button>
+    <button data-view="normal">🌈 Normal map</button>
+    <button data-view="flat">🖍 Flat</button>
+  </div>
+
+  <h2>Light</h2>
+  <p class="hint">Drag on the picture to move the light around him.</p>
+  <div class="slider"><span>Light height</span><input type="range" id="lightZ" min="0.1" max="2" step="0.05" value="0.8"><output></output></div>
+  <div class="slider"><span>Shading</span><input type="range" id="strength" min="0" max="1" step="0.05" value="0.7"><output></output></div>
+  <div class="slider"><span>Shadow lift</span><input type="range" id="ambient" min="0" max="1" step="0.05" value="0.45"><output></output></div>
+  <div class="slider"><span>Cartoon steps</span><input type="range" id="steps" min="0" max="5" step="1" value="0"><output></output></div>
+  <div class="slider"><span>Shine</span><input type="range" id="shine" min="0" max="1" step="0.05" value="0.25"><output></output></div>
+  <div class="slider"><span>Rim light</span><input type="range" id="rim" min="0" max="1" step="0.05" value="0.2"><output></output></div>
+  <div class="slider" title="Light bounced back onto the edge farthest from the light"><span>Reflected light</span><input type="range" id="bounce" min="0" max="1" step="0.05" value="0.5"><output></output></div>
+  <div class="slider"><span>Reflected width</span><input type="range" id="bounceWidth" min="0.05" max="1" step="0.05" value="0.5"><output></output></div>
+  <div class="slider" title="Also light up the ink outline on the side away from the light"><span>On lines</span><input type="range" id="bounceLines" min="0" max="1" step="0.05" value="0.6"><output></output></div>
+  <div class="row"><label class="check">Reflected colour <input type="color" id="bounceColor" value="#ffd9a8"></label></div>
+  <div class="slider" title="Shadows that parts cast on what's under them: the head on the neck, sleeves on arms…"><span>Cast shadows</span><input type="range" id="shadow" min="0" max="1" step="0.05" value="0.5"><output></output></div>
+  <div class="slider" title="Shadows from one part onto another: the head on the neck, the bib on the legs (longer as the light gets lower)"><span>Shadow: parts</span><input type="range" id="shadowLen" min="0.5" max="20" step="0.5" value="8"><output></output></div>
+  <div class="slider" title="Shadows within a part: sleeves on arms, shorts on legs, hair on the face, the mouth line on the teeth"><span>Shadow: details</span><input type="range" id="shadowLenIn" min="0.2" max="8" step="0.1" value="2.5"><output></output></div>
+
+  <h2>Shape</h2>
+  <p class="hint">How rounded each part looks. The maps are rebuilt when you change these.</p>
+  <div class="slider"><span>Puffiness</span><input type="range" id="bulge" min="0" max="1.5" step="0.05" value="0.8"><output></output></div>
+  <div class="slider"><span>Detail depth</span><input type="range" id="detail" min="0" max="2" step="0.05" value="0.8"><output></output></div>
+  <div class="slider"><span>Detail width</span><input type="range" id="bevel" min="0.3" max="4" step="0.1" value="1.2"><output></output></div>
+  <div class="slider"><span>Ink lines</span><input type="range" id="ink" min="0" max="1" step="0.05" value="0.5"><output></output></div>
+  <div class="slider" title="How far layers marked Pop out swell outward (like eyeballs)"><span>Pop out</span><input type="range" id="pop" min="0" max="1.5" step="0.05" value="0.6"><output></output></div>
+  <h2>Layers</h2>
+  <p class="hint"><b>Flat</b>: decoration that makes no bumps (freckles, hair lines). <b>Pop</b>: swells outward (eyes). <b>No shadow</b>: casts no shadow (ink outlines). <b>On top</b>: casts shadows on everything else in its part, even what's drawn above it (the mouth line on the teeth).</p>
+  <div id="layerList"></div>
+
+  <h2>Save</h2>
+  <p class="hint">Saves one normal map for each moving part (arms, legs, head), one for the rest of the body, and one for the whole standing pose, in <code>assets/rigs/denny-normals/</code>, along with the light settings. They load by themselves next time.</p>
+  <div class="row"><button class="primary" id="saveBtn">💾 Save normal maps</button><button id="loadBtn" title="Go back to the last saved maps and settings">↺ Load saved</button><button id="dlBtn" title="Download the whole-pose normal map">⬇ Download</button></div>
+  <div id="saveMsg"></div>
+</aside>
+
+<script>
+'use strict';
+const INK = 'http://www.inkscape.org/namespaces/inkscape';
+const ROOT = new URL('../', location.href);
+const PX = 6;   // picture pixels per drawing unit
+const PARTS = [
+  { key: 'armR', match: /right\s*arm/i }, { key: 'armL', match: /left\s*arm/i },
+  { key: 'legR', match: /right\s*leg/i }, { key: 'legL', match: /left\s*leg/i },
+  { key: 'head', match: /^\s*(head|face)\s*$/i },
+];
+const $ = s => document.querySelector(s);
+const busy = t => { $('#busy').textContent = t || ''; };
+const opt = { view: 'shaded', light: [-0.55, 0.6], name: 'Denny', svgPath: 'assets/denny.svg' };
+
+const LOOK = ['strength', 'ambient', 'steps', 'shine', 'rim', 'bounce', 'bounceWidth', 'bounceLines', 'shadow', 'shadowLen', 'shadowLenIn'], SHAPE = ['bulge', 'detail', 'bevel', 'ink', 'pop'];
+const setMsg = (t, c) => { $('#saveMsg').textContent = t; $('#saveMsg').className = c || ''; };
+// A short fingerprint of the drawing, so saved maps can tell if the drawing has changed since.
+const hashOf = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); };
+let svgText = '', box = null, W = 0, H = 0, pieces = [], partOf = {};
+let albedo = null, normalAll = null, shapeSrc = null;
+// Per-layer choices (sets of shape ids). ignore = "Flat": makes no bumps.
+let ignore = new Set(), popSet = new Set(), noShadow = new Set(), onTop = new Set(), details = [];
+const IGNORE_DEFAULT = /freckle|nose\s*ridge|hair\s*line|pupil|bib\s*partition|^\s*belt\b|shirt\s*stripe/i, POP_DEFAULT = /^\s*(right|left)\s*eye\s*$/i, ONTOP_DEFAULT = /mouth\s*line/i;
+// Which layer is on top at each spot (for cast shadows): 'all', 'body' and one per moving part.
+let levels = {}, levelsDirty = true;
+// Mouth shapes for lip sync: groups named "Mouth A" … "Mouth H", "Mouth X", one shown at a time.
+// The piece holding them (the head) gets a normal map and a layer map for each mouth.
+let mouths = [], mouthPiece = null, shownMouth = null, mouthMaps = {}, mouthLevels = {};
+
+/* ---------- load the drawing and work out its pieces ---------- */
+async function boot() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('svg')) opt.svgPath = q.get('svg');
+  opt.name = q.get('name') || opt.svgPath.split('/').pop().replace(/\.svg$/i, '').replace(/^./, c => c.toUpperCase());
+  $('#fileName').textContent = opt.svgPath;
+  wireUI();
+  try { svgText = await (await fetch(new URL(opt.svgPath, ROOT), { cache: 'no-store' })).text(); }
+  catch { busy(`Couldn't load ${opt.svgPath}`); return; }
+  let rig = null;
+  try { const r = await fetch(new URL(`assets/rigs/${slug()}.rig.json`, ROOT), { cache: 'no-store' }); if (r.ok) rig = await r.json(); } catch { /* not saved */ }
+
+  // Measure the drawing in a hidden copy.
+  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+  const host = document.createElement('div'); host.style.cssText = 'position:absolute;left:-9999px;width:400px;height:400px';
+  const svg = document.importNode(doc.documentElement, true); host.appendChild(svg); document.body.appendChild(host);
+  const layer = [...svg.querySelectorAll('g')].find(g => g.querySelector('g')) || svg;
+  const b = (rig && rig.drawingBox) || (() => { const r = layer.getBBox(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })();
+  const pad = 2;
+  box = { x: b.x - pad, y: b.y - pad, w: b.w + 2 * pad, h: b.h + 2 * pad };
+  W = Math.round(box.w * PX); H = Math.round(box.h * PX);
+  // Pieces: each visible thing in the layer, back to front. Arms, legs and head are found from the saved joints or by name.
+  const labelOf = el => el.getAttributeNS(INK, 'label') || el.id;
+  for (const p of PARTS) {
+    const id = rig && rig.parts && rig.parts[p.key] && rig.parts[p.key].group;
+    const g = (id && svg.getElementById(id)) || [...layer.querySelectorAll('g')].find(x => p.match.test(labelOf(x)));
+    if (g) partOf[g.id] = p.key;
+  }
+  pieces = [...layer.children].filter(el => el.id && getComputedStyle(el).display !== 'none' && /^(g|path|rect|circle|ellipse|polygon|polyline|use)$/.test(el.localName))
+    .map(el => ({ id: el.id, part: partOf[el.id] || 'body' }));
+  // Every named shape inside the drawing (back to front), for the Layers list and the shadow map.
+  const lumOfColor = c => { const m = /rgb\((\d+),\s*(\d+),\s*(\d+)/.exec(c || ''); return m ? (0.3 * m[1] + 0.59 * m[2] + 0.11 * m[3]) / 255 : 1; };
+  details = [...layer.querySelectorAll('path, rect, circle, ellipse, polygon, polyline, use')]
+    .filter(el => el.id && getComputedStyle(el).display !== 'none')
+    .map(el => {
+      let top = el; while (top.parentNode !== layer) top = top.parentNode;
+      const cs = getComputedStyle(el);
+      return {
+        id: el.id, label: labelOf(el), group: el.parentNode === layer ? '' : (() => { let g = el.parentNode; while (g !== layer && !g.getAttributeNS(INK, 'label')) g = g.parentNode; return g === layer ? '' : labelOf(g); })(),
+        piece: pieces.findIndex(p => p.id === top.id), fill: cs.fill !== 'none', stroke: cs.stroke !== 'none', lum: lumOfColor(cs.fill),
+      };
+    });
+  mouths = [...layer.querySelectorAll('g')].map(g => ({ g, m: /^\s*mouth\s+([a-hx])\s*$/i.exec(labelOf(g)) })).filter(x => x.m)
+    .map(x => ({ key: x.m[1].toUpperCase(), id: x.g.id, shown: getComputedStyle(x.g).display !== 'none' }));
+  if (mouths.length) {
+    let top = layer.querySelector('#' + CSS.escape(mouths[0].id)); while (top.parentNode !== layer) top = top.parentNode;
+    mouthPiece = pieces.find(p => p.id === top.id) || null;
+    // Show one mouth: the resting one (X) if it's switched on, otherwise the first one that is.
+    shownMouth = (mouths.find(m => m.shown && m.key === 'X') || mouths.find(m => m.shown) || mouths[0]).key;
+  }
+  ignore = new Set(details.filter(d => IGNORE_DEFAULT.test(d.label)).map(d => d.id));
+  popSet = new Set(details.filter(d => POP_DEFAULT.test(d.label)).map(d => d.id));
+  onTop = new Set(details.filter(d => ONTOP_DEFAULT.test(d.label)).map(d => d.id));
+  // Ink-dark shapes (outlines, pupils, the inside of the mouth) and decoration cast no shadow, to begin with.
+  noShadow = new Set(details.filter(d => ignore.has(d.id) || (d.lum < 0.2 && !onTop.has(d.id))).map(d => d.id));
+  buildLayerList();
+  host.remove();
+  initGL();
+  if (!(await loadSaved())) await rebuild();
+}
+const slug = () => opt.name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+
+const FLAGS = { flat: () => ignore, pop: () => popSet, noShadow: () => noShadow, onTop: () => onTop };
+function buildLayerList() {
+  let html = '<table><thead><tr><th>Layer</th><th>Flat</th><th>Pop</th><th>No shadow</th><th>On top</th></tr></thead><tbody>', last = null;
+  for (const d of details) {
+    if (d.group !== last) { html += `<tr class="grp"><td colspan="5">${esc(d.group || 'Body')}</td></tr>`; last = d.group; }
+    html += `<tr><td>${esc(d.label)}</td>${Object.keys(FLAGS).map(f => `<td><input type="checkbox" data-flag="${f}" data-id="${esc(d.id)}" ${FLAGS[f]().has(d.id) ? 'checked' : ''}></td>`).join('')}</tr>`;
+  }
+  $('#layerList').innerHTML = html + '</tbody></table>';
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Render the drawing (or only some of its pieces) to a canvas the size of the maps.
+// hide: shapes to leave out (used when working out the shape, not for the picture itself).
+// Pattern fills (like a denim texture) become their plain background colour, so the weave
+// isn't mistaken for edges when the shape is worked out. The picture itself keeps the texture.
+function flattenPatterns(doc) {
+  const baseOf = id => {
+    let p = doc.getElementById(id);
+    for (let n = 0; p && n < 5; n++) {
+      const r = p.querySelector('rect');
+      if (r) { const m = /fill:s*(#[0-9a-fA-F]{3,6})/.exec(r.getAttribute('style') || ''); return m ? m[1] : r.getAttribute('fill'); }
+      const h = p.getAttribute('href') || p.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+      p = h && doc.getElementById(h.slice(1));
+    }
+    return null;
+  };
+  for (const el of doc.querySelectorAll('[style*="url(#"]')) {
+    el.setAttribute('style', el.getAttribute('style').replace(/fill:s*url(#([^)]+))/g, (m, id) => { const c = baseOf(id); return c ? 'fill:' + c : m; }));
+  }
+}
+function showMouth(doc, key) {
+  if (!key) return;
+  for (const m of mouths) { const el = doc.getElementById(m.id); if (el) el.setAttribute('style', (el.getAttribute('style') || '').replace(/display:[^;]*;?/g, '') + ';display:' + (m.key === key ? 'inline' : 'none')); }
+}
+async function render(onlyIds, hide, mouth) {
+  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+  if (hide) flattenPatterns(doc);   // working out shape: textures don't make bumps
+  const root = doc.documentElement;
+  root.setAttribute('viewBox', `${box.x} ${box.y} ${box.w} ${box.h}`);
+  root.setAttribute('width', W); root.setAttribute('height', H);
+  if (onlyIds) {
+    for (const p of pieces) if (!onlyIds.includes(p.id)) {
+      const el = doc.getElementById(p.id);
+      if (el) el.setAttribute('style', (el.getAttribute('style') || '') + ';display:none');
+    }
+  }
+  for (const id of hide || []) {
+    const el = doc.getElementById(id);
+    if (el) el.setAttribute('style', (el.getAttribute('style') || '') + ';display:none');
+  }
+  showMouth(doc, mouth || shownMouth);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = url; });
+  URL.revokeObjectURL(url);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  c.getContext('2d').drawImage(img, 0, 0, W, H);
+  return c;
+}
+
+/* ---------- which layer is on top, for cast shadows ----------
+   Every shape is drawn in one flat grey whose brightness is its place in the stacking order
+   (back = dark, front = light), with no smoothing at the edges so the greys stay exact.
+   A spot is in shadow when something higher lies a little way towards the light. */
+function levelOf() {
+  const list = details.filter(d => d.piece >= 0)
+    .map((d, i) => ({ d, i }))
+    .sort((a, b) => (a.d.piece - b.d.piece) || ((onTop.has(a.d.id) ? 1 : 0) - (onTop.has(b.d.id) ? 1 : 0)) || (a.i - b.i));
+  const n = list.length, out = new Map();
+  list.forEach((x, k) => out.set(x.d.id, 1 + Math.round(k * 254 / Math.max(1, n - 1))));
+  return out;
+}
+async function renderLevels(onlyIds, mouth) {
+  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml'), root = doc.documentElement;
+  showMouth(doc, mouth || shownMouth);
+  root.setAttribute('viewBox', `${box.x} ${box.y} ${box.w} ${box.h}`); root.setAttribute('width', W); root.setAttribute('height', H);
+  root.setAttribute('shape-rendering', 'crispEdges');
+  const add = (el, css) => el.setAttribute('style', (el.getAttribute('style') || '') + ';' + css);
+  doc.querySelectorAll('g').forEach(g => add(g, 'opacity:1;filter:none'));
+  if (onlyIds) for (const p of pieces) if (!onlyIds.includes(p.id)) { const el = doc.getElementById(p.id); if (el) add(el, 'display:none'); }
+  const lv = levelOf();
+  for (const d of details) {
+    const el = doc.getElementById(d.id); if (!el) continue;
+    const v = lv.get(d.id);
+    if (!v) { add(el, 'display:none'); continue; }
+    const c = `rgb(${v},${(d.piece + 1) * 9},${noShadow.has(d.id) ? 255 : 0})`;   // red: stacking order; green: which part; blue: casts no shadow
+    add(el, `opacity:1;filter:none;shape-rendering:crispEdges;${d.fill ? `fill:${c};fill-opacity:1;` : ''}${d.stroke ? `stroke:${c};stroke-opacity:1;` : ''}`);
+  }
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = url; });
+  URL.revokeObjectURL(url);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, W, H);
+  // Any leftover soft edge pixels: keep them only if solid.
+  const im = g.getImageData(0, 0, W, H), d = im.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 127 ? 255 : 0;
+  g.putImageData(im, 0, 0);
+  return c;
+}
+// The head again with each mouth showing (normal map + layer map), for talking.
+async function buildMouths(s, full) {
+  mouthMaps = {}; mouthLevels = {};
+  if (!mouthPiece) return;
+  const p = mouthPiece, pi = pieces.indexOf(p);
+  if (!s) s = Object.fromEntries(SHAPE.map(k => [k, +$('#' + k).value]));
+  if (!full) { if (!shapeSrc) shapeSrc = await render(null, ignore); full = shapeSrc.getContext('2d').getImageData(0, 0, W, H).data; }
+  const under = p.under || new Uint8ClampedArray(W * H * 4);
+  const hasPop = details.some(d => d.piece === pi && popSet.has(d.id));
+  for (const m of mouths) {
+    busy(`Making the head with mouth ${m.key}…`);
+    const c = await render([p.id], ignore, m.key);
+    const pc = hasPop ? await renderPopMask([p.id], m.key) : null;
+    if (hasPop && !p.popFull) p.popFull = await popShapes(p);
+    mouthMaps[m.key] = pieceNormals(c, s, full, under, pc, hasPop ? p.popFull : null);
+    mouthLevels[m.key] = await renderLevels([p.id], m.key);
+  }
+}
+// Which popped layer is visible at each spot: each popped layer in its own shade of red, everything
+// else that's drawn (and could cover it) in black, decoration left out.
+async function renderPopMask(onlyIds, mouth) {
+  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml'), root = doc.documentElement;
+  showMouth(doc, mouth || shownMouth);
+  root.setAttribute('viewBox', `${box.x} ${box.y} ${box.w} ${box.h}`); root.setAttribute('width', W); root.setAttribute('height', H);
+  root.setAttribute('shape-rendering', 'crispEdges');
+  const add = (el, css) => el.setAttribute('style', (el.getAttribute('style') || '') + ';' + css);
+  doc.querySelectorAll('g').forEach(g => add(g, 'opacity:1;filter:none'));
+  if (onlyIds) for (const p of pieces) if (!onlyIds.includes(p.id)) { const el = doc.getElementById(p.id); if (el) add(el, 'display:none'); }
+  const pops = details.filter(d => popSet.has(d.id));
+  for (const d of details) {
+    const el = doc.getElementById(d.id); if (!el) continue;
+    if (ignore.has(d.id) && !popSet.has(d.id)) { add(el, 'display:none'); continue; }
+    const i = pops.indexOf(d), c = i >= 0 ? `rgb(${20 + i * 20},0,0)` : 'rgb(0,0,0)';
+    add(el, `opacity:1;filter:none;shape-rendering:crispEdges;${d.fill ? `fill:${c};fill-opacity:1;` : ''}${d.stroke ? `stroke:${c};stroke-opacity:1;` : ''}`);
+  }
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
+  const img = new Image();
+  await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = url; });
+  URL.revokeObjectURL(url);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, W, H);
+  return c;
+}
+async function popShapes(p) {
+  const pi = pieces.indexOf(p), pops = details.filter(d => popSet.has(d.id)), out = {};
+  for (const d of pops) if (d.piece === pi) out[pops.indexOf(d) + 1] = await render([p.id], details.filter(x => x.id !== d.id).map(x => x.id));
+  return out;
+}
+async function rebuildLevels() {
+  levels = { all: await renderLevels(null), body: await renderLevels(pieces.filter(p => p.part === 'body').map(p => p.id)) };
+  for (const p of pieces) if (p.part !== 'body') levels[p.part] = await renderLevels([p.id]);
+  levelsDirty = false;
+}
+
+/* ---------- making the normal maps ---------- */
+// Exact distance to the nearest "seed" pixel (Felzenszwalb & Huttenlocher), in pixels.
+function distanceField(seed, w, h) {
+  const INF = 1e20, n = Math.max(w, h);
+  const g = new Float64Array(w * h), f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+  for (let i = 0; i < w * h; i++) g[i] = seed[i] ? 0 : INF;
+  const pass = (len, get, set) => {
+    for (let q = 0; q < len; q++) f[q] = get(q);
+    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < len; q++) {
+      const sAt = () => ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      let s = sAt();
+      while (s <= z[k]) { k--; s = sAt(); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+    for (let q = 0; q < len; q++) set(q, d[q]);
+  };
+  for (let x = 0; x < w; x++) pass(h, y => g[y * w + x], (y, val) => { g[y * w + x] = val; });
+  for (let y = 0; y < h; y++) pass(w, x => g[y * w + x], (x, val) => { g[y * w + x] = val; });
+  const out = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) out[i] = Math.sqrt(g[i]);
+  return out;
+}
+const dome = t => Math.sqrt(Math.max(0, 1 - (1 - Math.min(t, 1)) ** 2));   // rounded profile, 0 at the edge → 1 inside
+
+// One piece's normal map: the whole piece puffs up, each colour area inside it gets a small bevel,
+// and dark ink lines sink in a little.
+// full = the whole drawing's pixels, used to find edges that blend seamlessly into what's around them;
+// under = the normal map of the pieces drawn so far (behind this one).
+// popCanvas: which popped layer shows at each spot; popFull: each popped layer's whole shape (by the same number).
+function pieceNormals(canvas, s, full, under, popCanvas, popFull) {
+  const src = canvas.getContext('2d').getImageData(0, 0, W, H).data;
+  // Only work inside the piece's bounding box, plus a margin to see what it blends into.
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (src[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) return null;
+  const m = 60; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, N = w * h;
+  const A = new Float32Array(N), rgb = new Float32Array(N * 3), fA = new Float32Array(N), frgb = new Float32Array(N * 3);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, j = ((y + y0) * W + x + x0) * 4;
+    A[i] = src[j + 3] / 255; rgb[i * 3] = src[j]; rgb[i * 3 + 1] = src[j + 1]; rgb[i * 3 + 2] = src[j + 2];
+    fA[i] = full[j + 3] / 255; frgb[i * 3] = full[j]; frgb[i * 3 + 1] = full[j + 1]; frgb[i * 3 + 2] = full[j + 2];
+  }
+  const lumOf = (c, i) => (0.3 * c[i * 3] + 0.59 * c[i * 3 + 1] + 0.11 * c[i * 3 + 2]) / 255;
+  const inside = new Uint8Array(N), edge = new Uint8Array(N), ink = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    inside[i] = A[i] > 0.5 ? 1 : 0;
+    ink[i] = inside[i] ? Math.max(0, Math.min(1, (0.28 - lumOf(rgb, i)) / 0.18)) : 0;
+  }
+  const diff = (a, i, b, j) => Math.abs(a[i * 3] - b[j * 3]) + Math.abs(a[i * 3 + 1] - b[j * 3 + 1]) + Math.abs(a[i * 3 + 2] - b[j * 3 + 2]);
+  // Seamless joins: where the piece sits on (or beside) the same colour with no ink line between,
+  // the drawing shows no edge, so the rounded shape carries on across instead of curving down there.
+  const soft = new Uint8Array(N), queue = [];
+  const okOutside = j => !inside[j] && !soft[j] && fA[j] > 0.5 && lumOf(frgb, j) > 0.28;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (!inside[i] || ink[i] > 0.3) continue;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
+      if (j >= 0 && okOutside(j) && diff(rgb, i, frgb, j) < 45) { soft[j] = 1; queue.push(j); }
+    }
+  }
+  while (queue.length) {
+    const i = queue.pop(), x = i % w, y = (i - x) / w;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) {
+      if (j >= 0 && okOutside(j) && diff(frgb, i, frgb, j) < 25) { soft[j] = 1; queue.push(j); }
+    }
+  }
+  // Colour edges: neighbours inside the piece whose colours differ clearly.
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (!inside[i]) { if (!soft[i]) edge[i] = 1; continue; }
+    if (x + 1 < w && inside[i + 1] && diff(rgb, i, rgb, i + 1) > 60) { edge[i] = 1; edge[i + 1] = 1; }
+    if (y + 1 < h && inside[i + w] && diff(rgb, i, rgb, i + w) > 60) { edge[i] = 1; edge[i + w] = 1; }
+  }
+  const outside = new Uint8Array(N); for (let i = 0; i < N; i++) outside[i] = inside[i] || soft[i] ? 0 : 1;
+  const dIn = distanceField(outside, w, h), dEdge = distanceField(edge, w, h);
+  let R = 0; for (let i = 0; i < N; i++) if (dIn[i] > R) R = dIn[i];
+  const bevel = s.bevel * PX, big = new Float32Array(N), small = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    if (!inside[i] && !soft[i]) continue;
+    big[i] = R * s.bulge * dome(dIn[i] / R);
+    small[i] = bevel * s.detail * dome(dEdge[i] / bevel) - ink[i] * s.ink * bevel * 0.8;
+  }
+  // The big puffed shape is smoothed a lot (a raw distance field leaves creases along the middle);
+  // the small details only a little, so they stay crisp.
+  const bigS = boxBlur(boxBlur(boxBlur(big, w, h, Math.max(2, Math.round(R * 0.2))), w, h, Math.max(2, Math.round(R * 0.2))), w, h, Math.max(2, Math.round(R * 0.2)));
+  const smallS = blur3(small, w, h), Hs = new Float32Array(N);
+  for (let i = 0; i < N; i++) Hs[i] = bigS[i] + smallS[i];
+  // Layers marked Pop out (the eyes) swell outward as a dome of their own, on top of the rest.
+  let popWhich = null, popAdd = null;
+  if (popCanvas && s.pop > 0) {
+    const pd = popCanvas.getContext('2d').getImageData(x0, y0, w, h).data;
+    popWhich = new Uint8Array(N); popAdd = {};
+    const keys = new Set();
+    for (let i = 0; i < N; i++) if (pd[i * 4 + 3] > 127 && pd[i * 4] >= 10) { popWhich[i] = Math.round((pd[i * 4] - 20) / 20) + 1; keys.add(popWhich[i]); }
+    for (const k of keys) {
+      const fc = popFull && popFull[k];
+      if (!fc) continue;
+      const fd = fc.getContext('2d').getImageData(x0, y0, w, h).data, outPop = new Uint8Array(N);
+      for (let i = 0; i < N; i++) outPop[i] = fd[i * 4 + 3] > 127 ? 0 : 1;
+      const dP = distanceField(outPop, w, h);
+      let Rp = 0; for (let i = 0; i < N; i++) if (dP[i] > Rp) Rp = dP[i];
+      if (Rp < 1) continue;
+      const ph = new Float32Array(N);
+      for (let i = 0; i < N; i++) if (!outPop[i]) ph[i] = s.pop * Rp * 0.8 * dome(dP[i] / Rp);
+      const r = Math.max(1, Math.round(Rp * 0.12));
+      popAdd[k] = boxBlur(boxBlur(ph, w, h, r), w, h, r);
+    }
+  }
+  // Near a seamless join, fade this piece's surface into the surface already drawn beneath it,
+  // so the two meet without a visible edge.
+  let dSoft = null;
+  const fade = Math.max(bevel * 4, R * 0.5);
+  if (under && soft.some(v => v)) dSoft = distanceField(soft, w, h);
+  const out = new ImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, o = i * 4;
+    // Where a popped layer shows, its slope includes its own dome.
+    const add = popWhich && popWhich[i] && popAdd[popWhich[i]], hAt = j => Hs[j] + (add ? add[j] : 0);
+    const hx = (hAt(y * w + Math.min(w - 1, x + 1)) - hAt(y * w + Math.max(0, x - 1))) / 2;
+    const hy = (hAt(Math.min(h - 1, y + 1) * w + x) - hAt(Math.max(0, y - 1) * w + x)) / 2;
+    let nx = -hx, ny = -hy, nz = 1, l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    if (dSoft && A[i] > 0 && dSoft[i] < fade) {
+      const j = ((y + y0) * W + x + x0) * 4;
+      if (under[j + 3] > 127) {
+        const t = dSoft[i] / fade, k = t * t * (3 - 2 * t);   // 0 at the join → 1 further in
+        const ux = under[j] / 127.5 - 1, uy = -(under[j + 1] / 127.5 - 1), uz = under[j + 2] / 127.5 - 1;
+        nx = ux + (nx - ux) * k; ny = uy + (ny - uy) * k; nz = uz + (nz - uz) * k;
+        l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+      }
+    }
+    // Stored the usual way: red = right, green = up, blue = towards you.
+    out.data[o] = Math.round((nx * 0.5 + 0.5) * 255);
+    out.data[o + 1] = Math.round((-ny * 0.5 + 0.5) * 255);
+    out.data[o + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+    out.data[o + 3] = Math.round(A[i] * 255);
+  }
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  c.getContext('2d').putImageData(out, x0, y0);
+  return c;
+}
+// Box blur of radius r, across then down (three of these in a row look like a smooth Gaussian blur).
+function boxBlur(a, w, h, r) {
+  const t = new Float32Array(a.length), o = new Float32Array(a.length), n = 2 * r + 1;
+  for (let y = 0; y < h; y++) {
+    let sum = 0; const row = y * w;
+    for (let x = -r; x <= r; x++) sum += a[row + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) {
+      t[row + x] = sum / n;
+      sum += a[row + Math.min(w - 1, x + r + 1)] - a[row + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -r; y <= r; y++) sum += t[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) {
+      o[y * w + x] = sum / n;
+      sum += t[Math.min(h - 1, y + r + 1) * w + x] - t[Math.max(0, y - r) * w + x];
+    }
+  }
+  return o;
+}
+function blur3(a, w, h) {
+  const t = new Float32Array(a.length), o = new Float32Array(a.length);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; t[i] = (a[i - (x > 0)] + 2 * a[i] + a[i + (x < w - 1)]) / 4; }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; o[i] = (t[i - (y > 0) * w] + 2 * t[i] + t[i + (y < h - 1) * w]) / 4; }
+  return o;
+}
+
+let maps = {};   // 'all', 'body', 'armR', ... → canvas
+async function rebuild() {
+  busy('Making the normal maps…');
+  await new Promise(r => setTimeout(r, 30));
+  const s = { bulge: +$('#bulge').value, detail: +$('#detail').value, bevel: +$('#bevel').value, ink: +$('#ink').value, pop: +$('#pop').value };
+  if (!albedo) albedo = await render(null);
+  const blank = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  maps = { all: blank(), body: blank() };
+  if (!shapeSrc) shapeSrc = await render(null, ignore);
+  const full = shapeSrc.getContext('2d').getImageData(0, 0, W, H).data;
+  for (const p of pieces) {
+    if (p === mouthPiece) p.under = maps.all.getContext('2d').getImageData(0, 0, W, H).data;
+    if (!p.canvas) p.canvas = await render([p.id], ignore);
+    const pi = pieces.indexOf(p), hasPop = details.some(d => d.piece === pi && popSet.has(d.id));
+    if (hasPop && !p.popCanvas) { p.popCanvas = await renderPopMask([p.id]); p.popFull = await popShapes(p); }
+    const n = pieceNormals(p.canvas, s, full, maps.all.getContext('2d').getImageData(0, 0, W, H).data, hasPop ? p.popCanvas : null, hasPop ? p.popFull : null);
+    if (!n) continue;
+    maps.all.getContext('2d').drawImage(n, 0, 0);
+    if (p.part === 'body') maps.body.getContext('2d').drawImage(n, 0, 0);
+    else maps[p.part] = n;
+  }
+  normalAll = maps.all;
+  if (levelsDirty || !levels.all) await rebuildLevels();
+  await buildMouths(s, full);
+  upload();
+  busy('');
+  draw();
+}
+
+/* ---------- shading preview (graphics card) ---------- */
+let gl, prog, texA, texN, texL, texC, fbo, post, ploc = {}, loc = {}, quad;
+function initGL() {
+  const c = $('#view'); c.width = W; c.height = H;
+  gl = c.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
+  const vs = `attribute vec2 p; varying vec2 uv; void main() { uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0, 1); }`;
+  const fs = `precision mediump float; varying vec2 uv;
+    uniform sampler2D alb, nrm; uniform vec3 L; uniform float strength, ambient, steps, shine, rim, bounce, bounceWidth, bounceLines; uniform vec3 bounceColor; uniform int mode;
+    void main() {
+      vec4 a = texture2D(alb, uv); vec4 nt = texture2D(nrm, uv);
+      vec3 n = normalize(nt.xyz * 2.0 - 1.0);
+      if (mode == 1) { gl_FragColor = vec4(nt.rgb, nt.a); return; }
+      if (mode == 2) { gl_FragColor = a; return; }
+      float d = max(dot(n, L), 0.0);
+      if (steps > 0.5) d = floor(d * steps + 0.5) / steps;
+      float light = mix(1.0, ambient + (1.0 - ambient) * d * 1.25, strength);
+      vec3 h = normalize(L + vec3(0, 0, 1));
+      float sp = pow(max(dot(n, h), 0.0), 40.0) * shine;
+      if (steps > 0.5) sp = step(0.5, sp) * shine;
+      float rm = pow(1.0 - clamp(n.z, 0.0, 1.0), 2.5) * rim * max(dot(normalize(n.xy + 1e-5), normalize(L.xy + 1e-5)), 0.0);
+      // Reflected light: light bounced back from the surroundings onto the edge facing away from the light,
+      // only where that edge is in shadow. Width decides how far in from the edge it reaches.
+      // How much the surface leans away from the light (sideways); width = how little lean it takes.
+      float away = max(dot(n.xy, -normalize(L.xy + 1e-5)), 0.0);
+      float t0 = mix(0.55, 0.05, bounceWidth);
+      float rf = smoothstep(t0, t0 + 0.2, away) * (1.0 - d);
+      if (steps > 0.5) rf = step(0.45, rf);
+      rf *= bounce * strength * step(0.001, nt.a);
+      // Dark ink barely takes coloured light, so on lines the reflected light is added on top.
+      float inkiness = 1.0 - smoothstep(0.12, 0.35, dot(a.rgb, vec3(0.3, 0.59, 0.11)));
+      vec3 col = a.rgb * light + a.rgb * bounceColor * rf * 1.6 + bounceColor * rf * bounceLines * inkiness * 2.0;
+      gl_FragColor = vec4(col + vec3(1.0, 0.97, 0.88) * (sp + rm) * step(0.001, nt.a), a.a);
+    }`;
+  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog); gl.useProgram(prog);
+  quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const p = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(p); gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 0, 0);
+  // Second step: cast shadows. A spot is darkened when a higher layer lies a little way towards the light;
+  // the nearer that layer, the darker (so shadows fade out softly).
+  const pfs = `precision mediump float; varying vec2 uv;
+    uniform sampler2D col, lev; uniform vec2 toLight, side; uniform float shadow, inner;
+    void main() {
+      vec4 c = texture2D(col, vec2(uv.x, 1.0 - uv.y));
+      vec4 me = texture2D(lev, uv);
+      if (shadow <= 0.0 || me.a < 0.5 || c.a < 0.01) { gl_FragColor = c; return; }
+      // Three side-by-side rays towards the light, averaged, so the shadow's edge is smooth.
+      float sh = 0.0;
+      for (int r = -1; r <= 1; r++) {
+        float hit = 0.0;
+        for (int i = 1; i <= 40; i++) {
+          float t = float(i) / 40.0;
+          vec4 o = texture2D(lev, uv + toLight * t + side * float(r));
+          if (o.a > 0.5 && o.b < 0.5 && o.r > me.r + 0.001) {
+            // Within the same part the shadow is shorter (inner = its length as a share of the long one).
+            float k = abs(o.g - me.g) < 0.01 ? t / inner : t;
+            if (k <= 1.0) hit = max(hit, 1.0 - smoothstep(0.55, 1.0, k));   // solid, softening towards its end
+          }
+        }
+        sh += hit / 3.0;
+      }
+      // Warm shadows (a little less green and blue taken away than red), so skin doesn't go olive.
+      gl_FragColor = vec4(c.rgb * (1.0 - shadow * sh * vec3(0.8, 0.95, 0.92)), c.a);
+    }`;
+  post = gl.createProgram(); gl.attachShader(post, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(post, sh(gl.FRAGMENT_SHADER, pfs));
+  gl.bindAttribLocation(post, p, 'p'); gl.linkProgram(post);
+  for (const k of ['col', 'lev', 'toLight', 'side', 'shadow', 'inner']) ploc[k] = gl.getUniformLocation(post, k);
+  gl.useProgram(prog);
+  for (const k of ['alb', 'nrm', 'L', 'strength', 'ambient', 'steps', 'shine', 'rim', 'bounce', 'bounceWidth', 'bounceLines', 'bounceColor', 'mode']) loc[k] = gl.getUniformLocation(prog, k);
+  const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
+  texA = mk(); texN = mk(); texL = mk(); texC = mk();
+  // The layer map must not be blended between pixels.
+  gl.bindTexture(gl.TEXTURE_2D, texL); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texC, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+function upload() {
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, albedo);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texN); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, normalAll);
+  if (levels.all) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texL); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, levels.all); }
+  gl.useProgram(prog); gl.uniform1i(loc.alb, 0); gl.uniform1i(loc.nrm, 1);
+}
+function draw() {
+  if (!gl || !normalAll) return;
+  const z = +$('#lightZ').value, [lx, ly] = opt.light, l = Math.hypot(lx, ly, z);
+  gl.useProgram(prog);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform3f(loc.L, lx / l, ly / l, z / l);
+  for (const k of LOOK) if (loc[k]) gl.uniform1f(loc[k], +$('#' + k).value);
+  const bc = $('#bounceColor').value;
+  gl.uniform3f(loc.bounceColor, parseInt(bc.slice(1, 3), 16) / 255, parseInt(bc.slice(3, 5), 16) / 255, parseInt(bc.slice(5, 7), 16) / 255);
+  gl.uniform1i(loc.mode, { shaded: 0, normal: 1, flat: 2 }[opt.view]);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  // Cast shadows on top. Their length grows as the light gets lower; a light straight in front casts none.
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.useProgram(post);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texC);
+  gl.uniform1i(ploc.col, 3); gl.uniform1i(ploc.lev, 2);
+  const flat = Math.hypot(lx, ly), lenPx = Math.min(+$('#shadowLen').value * PX * flat / Math.max(z, 0.05), +$('#shadowLen').value * PX * 4);
+  gl.uniform2f(ploc.toLight, flat ? lx / flat * lenPx / W : 0, flat ? -ly / flat * lenPx / H : 0);
+  gl.uniform2f(ploc.side, flat ? ly / flat * 1.5 / W : 0, flat ? lx / flat * 1.5 / H : 0);   // 1.5 pixels across the ray
+  gl.uniform1f(ploc.shadow, opt.view === 'shaded' && levels.all ? +$('#shadow').value : 0);
+  gl.uniform1f(ploc.inner, Math.min(1, +$('#shadowLenIn').value / +$('#shadowLen').value));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  placeSun();
+}
+function placeSun() {
+  const r = $('#view').getBoundingClientRect(), s = $('#stage').getBoundingClientRect();
+  $('#sun').style.left = (r.left - s.left + r.width / 2 + opt.light[0] * r.width / 2) + 'px';
+  $('#sun').style.top = (r.top - s.top + r.height / 2 - opt.light[1] * r.height / 2) + 'px';
+  $('#sun').style.display = opt.view === 'shaded' ? '' : 'none';
+}
+
+/* ---------- controls ---------- */
+function wireUI() {
+  document.querySelectorAll('.slider input').forEach(i => {
+    const out = i.nextElementSibling, show = () => { out.textContent = i.id === 'steps' ? (+i.value ? i.value : 'off') : (+i.value).toFixed(2).replace(/0$/, ''); };
+    show(); i._show = show;
+    i.addEventListener('input', () => { show(); unsaved(); if (SHAPE.includes(i.id)) scheduleRebuild(); else draw(); });
+  });
+  $('#views').addEventListener('click', e => {
+    const b = e.target.closest('[data-view]'); if (!b) return;
+    opt.view = b.dataset.view;
+    document.querySelectorAll('#views button').forEach(x => x.classList.toggle('on', x === b));
+    draw();
+  });
+  let dragging = false;
+  const setLight = e => {
+    const r = $('#view').getBoundingClientRect();
+    opt.light = [Math.max(-1.5, Math.min(1.5, ((e.clientX - r.left) / r.width - 0.5) * 2)), Math.max(-1.5, Math.min(1.5, -((e.clientY - r.top) / r.height - 0.5) * 2))];
+    draw();
+  };
+  $('#stage').addEventListener('pointerdown', e => { dragging = true; $('#stage').setPointerCapture(e.pointerId); setLight(e); });
+  $('#stage').addEventListener('pointermove', e => { if (dragging) setLight(e); });
+  $('#stage').addEventListener('pointerup', () => { if (dragging) unsaved(); dragging = false; });
+  $('#darkBg').addEventListener('change', e => $('#stage').classList.toggle('dark', e.target.checked));
+  addEventListener('resize', placeSun);
+  $('#saveBtn').addEventListener('click', save);
+  $('#loadBtn').addEventListener('click', () => loadSaved(true));
+  $('#bounceColor').addEventListener('input', () => { unsaved(); draw(); });
+  $('#layerList').addEventListener('change', e => {
+    const f = e.target.dataset.flag, id = e.target.dataset.id; if (!f) return;
+    const set = FLAGS[f]();
+    if (e.target.checked) set.add(id); else set.delete(id);
+    if (f === 'flat') { shapeSrc = null; pieces.forEach(p => { p.canvas = null; }); }
+    if (f === 'pop' || f === 'flat') pieces.forEach(p => { p.popCanvas = null; p.popFull = null; });
+    levelsDirty = true;
+    unsaved(); scheduleRebuild();
+  });
+  $('#dlBtn').addEventListener('click', () => { const a = document.createElement('a'); a.href = maps.all.toDataURL('image/png'); a.download = slug() + '-normals.png'; a.click(); });
+}
+async function loadSaved(fromButton) {
+  let info;
+  try {
+    const r = await fetch(new URL(`assets/rigs/${slug()}-normals/normals.json`, ROOT), { cache: 'no-store' });
+    if (!r.ok) throw new Error('none');
+    info = await r.json();
+  } catch {
+    if (fromButton) setMsg('No saved normal maps yet.', 'err');
+    return false;
+  }
+  // Settings first, so the sliders show what was saved.
+  setSliders(Object.fromEntries(Object.entries(info.settings || {}).filter(([, v]) => typeof v === 'number')));
+  if (info.settings && Array.isArray(info.settings.ignore)) {
+    const known = new Set(details.map(d => d.id)), pick = a => new Set(a.filter(id => known.has(id)));
+    ignore = pick(info.settings.ignore);
+    if (Array.isArray(info.settings.popLayers)) popSet = pick(info.settings.popLayers);
+    if (Array.isArray(info.settings.noShadow)) noShadow = pick(info.settings.noShadow);
+    if (Array.isArray(info.settings.onTop)) onTop = pick(info.settings.onTop);
+    // Layers added to the drawing since (like new mouths) get the usual starting choices.
+    const seen = Array.isArray(info.settings.known) ? new Set(info.settings.known) : null;
+    for (const d of details) {
+      if (seen && seen.has(d.id)) continue;
+      if (seen === null && [ignore, popSet, noShadow, onTop].some(x => x.has(d.id))) continue;
+      if (IGNORE_DEFAULT.test(d.label)) ignore.add(d.id);
+      if (POP_DEFAULT.test(d.label)) popSet.add(d.id);
+      if (ONTOP_DEFAULT.test(d.label)) onTop.add(d.id);
+      if (ignore.has(d.id) || (d.lum < 0.2 && !onTop.has(d.id))) noShadow.add(d.id);
+    }
+    buildLayerList();
+  }
+  if (info.look) {
+    setSliders(info.look);
+    if (info.look.light) opt.light = info.look.light;
+    if (info.look.bounceColor) $('#bounceColor').value = info.look.bounceColor;
+  }
+  const b = info.drawingBox, same = b && ['x', 'y', 'w', 'h'].every(k => Math.abs(b[k] - box[k]) < 0.01);
+  const oldMaps = !(info.settings && Array.isArray(info.settings.ignore)) && ignore.size;
+  if (oldMaps || (info.version || 1) < 2 || (mouthPiece && !info.mouths)) {
+    setMsg('Made the maps again with popping eyes and cast shadows. Save to keep them.', 'err');
+    await rebuild();
+    return true;
+  }
+  if (!same || (info.svgHash && info.svgHash !== hashOf(svgText))) {
+    setMsg('The drawing has changed since the maps were saved, so they were made again with the saved settings. Save to keep them.', 'err');
+    await rebuild();
+    return true;
+  }
+  busy('Loading the saved normal maps…');
+  if (!albedo) albedo = await render(null);
+  const loaded = {}, loadedLevels = {}, dir = `assets/rigs/${slug()}-normals/`;
+  for (const [k, m] of Object.entries(info.maps || {})) {
+    const img = new Image();
+    try { await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = new URL(dir + m.file + '?v=' + Date.now(), ROOT); }); }
+    catch { continue; }
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    c.getContext('2d').drawImage(img, m.px[0], m.px[1]);
+    loaded[k] = c;
+    if (m.levels) {
+      try {
+        const li = new Image();
+        await new Promise((ok, bad) => { li.onload = ok; li.onerror = bad; li.src = new URL(dir + m.levels.file + '?v=' + Date.now(), ROOT); });
+        const lc = document.createElement('canvas'); lc.width = W; lc.height = H;
+        lc.getContext('2d').drawImage(li, m.levels.px[0], m.levels.px[1]);
+        loadedLevels[k] = lc;
+      } catch { /* made again below */ }
+    }
+  }
+  busy('');
+  if (!loaded.all) { await rebuild(); return true; }
+  maps = loaded; normalAll = maps.all;
+  levels = loadedLevels; levelsDirty = !levels.all;
+  if (levelsDirty) await rebuildLevels();
+  upload(); draw();
+  setMsg(`Loaded the saved normal maps (saved ${new Date(info.savedAt).toLocaleString()}).`, 'ok');
+  return true;
+}
+function setSliders(obj) {
+  for (const [k, v] of Object.entries(obj)) {
+    const i = document.getElementById(k);
+    if (i && i.type === 'range') { i.value = v; i._show && i._show(); }
+  }
+}
+const unsaved = () => setMsg('Changes not saved yet.', 'err');
+
+let rebuildTimer = 0;
+function scheduleRebuild() { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(rebuild, 250); }
+
+// Each map is saved cropped to what it covers; normals.json says where each one goes.
+function crop(c) {
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) return null;
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  o.getContext('2d').drawImage(c, -x0, -y0);
+  return { canvas: o, px: [x0, y0, o.width, o.height] };
+}
+async function save() {
+  const msg = setMsg;
+  msg('Saving…');
+  // If the drawing was changed after this page was opened, make the maps from the new drawing first.
+  try {
+    const now = await (await fetch(new URL(opt.svgPath, ROOT), { cache: 'no-store' })).text();
+    if (hashOf(now) !== hashOf(svgText)) {
+      msg('The drawing changed since this page was opened. Making the maps from the new drawing first…');
+      svgText = now; albedo = null; shapeSrc = null; levelsDirty = true; pieces.forEach(p => { p.canvas = null; p.popCanvas = null; p.popFull = null; });
+      await rebuild();
+    }
+  } catch { /* can't check: save what's shown */ }
+  const info = {
+    app: 'CartoonStudio-normals', version: 2, character: opt.name, svg: opt.svgPath,
+    pixelsPerUnit: PX, drawingBox: box, convention: 'red = right, green = up, blue = towards the viewer (OpenGL style)',
+    svgHash: hashOf(svgText),
+    settings: {
+      ...Object.fromEntries(SHAPE.map(k => [k, +$('#' + k).value])),
+      ignore: [...ignore], ignoreLabels: details.filter(d => ignore.has(d.id)).map(d => d.label),
+      popLayers: [...popSet], noShadow: [...noShadow], onTop: [...onTop], known: details.map(d => d.id),
+    },
+    look: { light: opt.light.map(v => Math.round(v * 1000) / 1000), lightZ: +$('#lightZ').value, ...Object.fromEntries(LOOK.map(k => [k, +$('#' + k).value])), bounceColor: $('#bounceColor').value },
+    notes: 'levels: blue = casts no shadow. mouths.variants = the head again with each mouth shape showing (for lip sync). levels = which layer is on top at each spot, for cast shadows (red: brighter = higher; green: which piece of the drawing). Each map is cropped. rect = [x, y, w, h] in drawing units (same coordinates as the joints file); px = the same in pixels of the full picture. all = the whole standing pose; body = everything except the moving parts.',
+    maps: {}, savedAt: new Date().toISOString(),
+  };
+  const send = async (file, data) => {
+    for (const base of [ROOT.href, 'http://localhost:5173/']) {
+      try {
+        const r = await fetch(new URL('api/rig-file', base), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: slug(), kind: 'normals', file, data }) });
+        if (r.ok) return (await r.json()).file;
+      } catch { /* try the next way */ }
+    }
+    throw new Error('no server');
+  };
+  const rectOf = px => [box.x + px[0] / PX, box.y + px[1] / PX, px[2] / PX, px[3] / PX].map(v => Math.round(v * 100) / 100);
+  try {
+    for (const [k, c] of Object.entries(maps)) {
+      const cr = crop(c); if (!cr) continue;
+      await send(k + '.png', cr.canvas.toDataURL('image/png'));
+      info.maps[k] = { file: k + '.png', px: cr.px, rect: rectOf(cr.px) };
+      const lc = levels[k] && crop(levels[k]);
+      if (lc) {
+        await send(k + '-levels.png', lc.canvas.toDataURL('image/png'));
+        info.maps[k].levels = { file: k + '-levels.png', px: lc.px, rect: rectOf(lc.px) };
+      }
+    }
+    if (mouthPiece) {
+      if (!Object.keys(mouthMaps).length) { msg('Making the head with each mouth…'); await buildMouths(); msg('Saving…'); }
+      info.mouths = { part: mouthPiece.part, piece: mouthPiece.id, shown: shownMouth, groups: Object.fromEntries(mouths.map(m => [m.key, m.id])), variants: {} };
+      for (const m of mouths) {
+        const nc = mouthMaps[m.key] && crop(mouthMaps[m.key]), lc = mouthLevels[m.key] && crop(mouthLevels[m.key]);
+        if (!nc) continue;
+        const v = info.mouths.variants[m.key] = { file: `${mouthPiece.part}-mouth${m.key}.png`, px: nc.px, rect: rectOf(nc.px) };
+        await send(v.file, nc.canvas.toDataURL('image/png'));
+        if (lc) { v.levels = { file: `${mouthPiece.part}-mouth${m.key}-levels.png`, px: lc.px, rect: rectOf(lc.px) }; await send(v.levels.file, lc.canvas.toDataURL('image/png')); }
+      }
+    }
+    const f = await send('normals.json', 'data:application/json,' + encodeURIComponent(JSON.stringify(info, null, 2)));
+    msg(`✓ Saved ${Object.keys(info.maps).length} maps and ${f}`, 'ok');
+  } catch {
+    msg('The Cartoon Studio server isn\'t running, so nothing was saved. Start it with start.bat.', 'err');
+  }
+}
+
+boot().catch(e => busy('Something went wrong: ' + e.message));
+</script>
+</body>
+</html>

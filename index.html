@@ -32,7 +32,6 @@
       <div class="sec">
         <h4>Add to scene</h4>
         <div class="lib-grid">
-          <button data-act="addSmiley">🙂 Smiley character</button>
           <button data-act="addImage">🖼️ Image / character art</button>
           <button data-act="addText">🔤 Text / caption</button>
         </div>
@@ -46,8 +45,9 @@
         </div>
       </div>
       <div class="sec">
-        <h4>Lip sync</h4>
+        <h4>Lip sync & captions</h4>
         <div id="serverStatus" class="status">Checking…</div>
+        <div id="whisperStatus" class="status" style="margin-top:6px">Checking…</div>
         <button data-act="rhubarbHelp" class="full">How to set up Rhubarb</button>
       </div>
       <div class="sec">
@@ -86,10 +86,12 @@
       <button data-act="last" title="Last frame (End)">⏭</button>
       <span id="frameInfo"></span>
       <button data-act="endMovieHere" id="endHereBtn" title="Make the movie end on this frame">✂ End here</button>
+      <input id="wordFind" placeholder="🔎 Go to word…" title="Type a word from the captions and press Enter (again for the next one). [ and ] step through words." spellcheck="false">
       <div class="spacer"></div>
       <button data-act="toggleLoop" id="tgLoop" title="Loop playback">🔁 Loop</button>
       <button data-act="toggleOnion" id="tgOnion" title="Show ghosts of the previous and next keyframes">👻 Onion skin</button>
       <button data-act="togglePath" id="tgPath" title="Show the path the selected character travels">〰 Motion path</button>
+      <button data-act="toggleCamView" id="tgCam" title="On: see through the camera, like the finished video. Off: see the whole scene, with a box showing what the camera sees.">🎥 Camera view</button>
       <button data-act="toggleSafe" id="tgSafe" title="Show the area that phone app buttons won't cover">▭ Safe zone</button>
       <span class="sep"></span>
       <button data-act="zoomOut" title="Zoom timeline out">−</button>
@@ -103,6 +105,7 @@
 
   <script src="js/smiley.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/gl.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,772 @@
+{
+  "app": "CartoonStudio-normals",
+  "version": 2,
+  "character": "Denny",
+  "svg": "assets/denny.svg",
+  "pixelsPerUnit": 6,
+  "drawingBox": {
+    "x": 32.36,
+    "y": 39.77,
+    "w": 155.64,
+    "h": 242.69
+  },
+  "convention": "red = right, green = up, blue = towards the viewer (OpenGL style)",
+  "svgHash": "a47ae7a0",
+  "settings": {
+    "bulge": 0.4,
+    "detail": 0.2,
+    "bevel": 1.9,
+    "ink": 0.15,
+    "pop": 0.6,
+    "ignore": [
+      "path9",
+      "path10",
+      "path11",
+      "path12",
+      "path13",
+      "path1",
+      "path16",
+      "path17",
+      "path17-2",
+      "path17-1",
+      "path18",
+      "path19",
+      "path21",
+      "path65",
+      "path66",
+      "path70",
+      "path71",
+      "path5",
+      "path8",
+      "path20",
+      "path31",
+      "path36",
+      "path37",
+      "path38",
+      "path57",
+      "path58",
+      "path59",
+      "path59-8",
+      "path39"
+    ],
+    "ignoreLabels": [
+      "Shirt Stripe 1",
+      "Shirt Stripe 2",
+      "Shirt Stripe 1",
+      "Shirt Stripe 2",
+      "Hair Line 1",
+      "Hair Line 2",
+      "Hair Line 3",
+      "Hair Line 4",
+      "Hair Line 5",
+      "Hair Line 6",
+      "Left Pupil",
+      "Right Pupil",
+      "Nose Ridge",
+      "Freckles 6",
+      "Freckles 5",
+      "Freckles 4",
+      "Freckles 3",
+      "Freckles 2",
+      "Freckles 1",
+      "Belt 2",
+      "Belt 1",
+      "Top Bib Partition 1",
+      "Top Bib Partition 1",
+      "Belly Crease 1",
+      "Belly Crease 2",
+      "Pocket 1",
+      "Pocket 2",
+      "Bib Button 1",
+      "Bib Button 2"
+    ],
+    "popLayers": [
+      "path3",
+      "path4"
+    ],
+    "noShadow": [
+      "path9",
+      "path10",
+      "path11",
+      "path12",
+      "path13",
+      "path1",
+      "path2",
+      "path14",
+      "path16",
+      "path17",
+      "path17-2",
+      "path17-1",
+      "path18",
+      "path19",
+      "path21",
+      "path23",
+      "path35",
+      "path44",
+      "path55",
+      "path49",
+      "path52",
+      "path45",
+      "path20",
+      "path31",
+      "path36",
+      "path37",
+      "path38",
+      "path39",
+      "path65",
+      "path66",
+      "path70",
+      "path71",
+      "path5",
+      "path8",
+      "mB-mouth",
+      "mC-mouth",
+      "mE-mouth",
+      "mF-mouth",
+      "mG-lip",
+      "mH-mouth",
+      "path57",
+      "path58",
+      "path59",
+      "path59-8"
+    ],
+    "onTop": [
+      "path24",
+      "mA-line",
+      "mB-line",
+      "mC-line",
+      "mG-line",
+      "mH-line",
+      "mX-line"
+    ],
+    "known": [
+      "path62",
+      "path61",
+      "path67",
+      "path63",
+      "path65",
+      "path66",
+      "path64",
+      "path68",
+      "path69",
+      "path70",
+      "path71",
+      "path72",
+      "path60",
+      "path73",
+      "path6",
+      "path7",
+      "path9",
+      "path10",
+      "path11",
+      "path12",
+      "path13",
+      "path1",
+      "path2",
+      "path3",
+      "path4",
+      "path5",
+      "path8",
+      "path15",
+      "path14",
+      "path16",
+      "path17",
+      "path17-2",
+      "path17-1",
+      "path18",
+      "path19",
+      "path21",
+      "mA-line",
+      "mA-lip",
+      "mB-mouth",
+      "mB-teeth",
+      "mB-bite",
+      "mB-gaps",
+      "mB-line",
+      "mC-mouth",
+      "mC-line",
+      "mC-tongue",
+      "mC-tooth4",
+      "mC-tooth3",
+      "mC-tooth2",
+      "mC-tooth1",
+      "path23",
+      "path24",
+      "path25",
+      "path26",
+      "path27",
+      "path28",
+      "path29",
+      "mE-mouth",
+      "mE-tongue",
+      "mE-tooth1",
+      "mE-tooth2",
+      "mF-lips",
+      "mF-mouth",
+      "mF-crease1",
+      "mF-crease2",
+      "mG-teeth",
+      "mG-gaps",
+      "mG-lip",
+      "mG-line",
+      "mH-mouth",
+      "mH-line",
+      "mH-tongue",
+      "mH-tooth4",
+      "mH-tooth3",
+      "mH-tooth2",
+      "mH-tooth1",
+      "mX-line",
+      "mX-dimple",
+      "path41",
+      "path33",
+      "path34",
+      "path35",
+      "path42",
+      "path43",
+      "path44",
+      "path55",
+      "path46",
+      "path47",
+      "path48",
+      "path49",
+      "path50",
+      "path51",
+      "path52",
+      "path45",
+      "path30",
+      "path32",
+      "path20",
+      "path31",
+      "path36",
+      "path37",
+      "path38",
+      "path39",
+      "path57",
+      "path58",
+      "path59",
+      "path59-8"
+    ]
+  },
+  "look": {
+    "light": [
+      -0.55,
+      0.6
+    ],
+    "lightZ": 0.8,
+    "strength": 0.7,
+    "ambient": 0.45,
+    "steps": 0,
+    "shine": 0.25,
+    "rim": 0.2,
+    "bounce": 0.5,
+    "bounceWidth": 0.5,
+    "bounceLines": 0.6,
+    "shadow": 0.5,
+    "shadowLen": 8,
+    "shadowLenIn": 2.5,
+    "bounceColor": "#ffd9a8"
+  },
+  "notes": "levels: blue = casts no shadow. mouths.variants = the head again with each mouth shape showing (for lip sync). levels = which layer is on top at each spot, for cast shadows (red: brighter = higher; green: which piece of the drawing). Each map is cropped. rect = [x, y, w, h] in drawing units (same coordinates as the joints file); px = the same in pixels of the full picture. all = the whole standing pose; body = everything except the moving parts.",
+  "maps": {
+    "all": {
+      "file": "all.png",
+      "px": [
+        6,
+        5,
+        914,
+        1449
+      ],
+      "rect": [
+        33.36,
+        40.6,
+        152.33,
+        241.5
+      ],
+      "levels": {
+        "file": "all-levels.png",
+        "px": [
+          7,
+          6,
+          913,
+          1448
+        ],
+        "rect": [
+          33.53,
+          40.77,
+          152.17,
+          241.33
+        ]
+      }
+    },
+    "body": {
+      "file": "body.png",
+      "px": [
+        303,
+        610,
+        399,
+        534
+      ],
+      "rect": [
+        82.86,
+        141.44,
+        66.5,
+        89
+      ],
+      "levels": {
+        "file": "body-levels.png",
+        "px": [
+          297,
+          611,
+          433,
+          533
+        ],
+        "rect": [
+          81.86,
+          141.6,
+          72.17,
+          88.83
+        ]
+      }
+    },
+    "armR": {
+      "file": "armR.png",
+      "px": [
+        6,
+        669,
+        340,
+        467
+      ],
+      "rect": [
+        33.36,
+        151.27,
+        56.67,
+        77.83
+      ],
+      "levels": {
+        "file": "armR-levels.png",
+        "px": [
+          7,
+          670,
+          338,
+          466
+        ],
+        "rect": [
+          33.53,
+          151.44,
+          56.33,
+          77.67
+        ]
+      }
+    },
+    "armL": {
+      "file": "armL.png",
+      "px": [
+        581,
+        666,
+        339,
+        405
+      ],
+      "rect": [
+        129.19,
+        150.77,
+        56.5,
+        67.5
+      ],
+      "levels": {
+        "file": "armL-levels.png",
+        "px": [
+          582,
+          667,
+          338,
+          404
+        ],
+        "rect": [
+          129.36,
+          150.94,
+          56.33,
+          67.33
+        ]
+      }
+    },
+    "head": {
+      "file": "head.png",
+      "px": [
+        27,
+        5,
+        658,
+        649
+      ],
+      "rect": [
+        36.86,
+        40.6,
+        109.67,
+        108.17
+      ],
+      "levels": {
+        "file": "head-levels.png",
+        "px": [
+          28,
+          6,
+          657,
+          648
+        ],
+        "rect": [
+          37.03,
+          40.77,
+          109.5,
+          108
+        ]
+      }
+    },
+    "legR": {
+      "file": "legR.png",
+      "px": [
+        442,
+        1095,
+        330,
+        354
+      ],
+      "rect": [
+        106.03,
+        222.27,
+        55,
+        59
+      ],
+      "levels": {
+        "file": "legR-levels.png",
+        "px": [
+          443,
+          1096,
+          329,
+          353
+        ],
+        "rect": [
+          106.19,
+          222.44,
+          54.83,
+          58.83
+        ]
+      }
+    },
+    "legL": {
+      "file": "legL.png",
+      "px": [
+        305,
+        1056,
+        330,
+        398
+      ],
+      "rect": [
+        83.19,
+        215.77,
+        55,
+        66.33
+      ],
+      "levels": {
+        "file": "legL-levels.png",
+        "px": [
+          305,
+          1057,
+          329,
+          397
+        ],
+        "rect": [
+          83.19,
+          215.94,
+          54.83,
+          66.17
+        ]
+      }
+    }
+  },
+  "savedAt": "2026-11-07T10:03:10.745Z",
+  "mouths": {
+    "part": "head",
+    "piece": "g29",
+    "shown": "X",
+    "groups": {
+      "A": "mouthA",
+      "B": "mouthB",
+      "C": "mouthC",
+      "D": "mouthD",
+      "E": "mouthE",
+      "F": "mouthF",
+      "G": "mouthG",
+      "H": "mouthH",
+      "X": "mouthX"
+    },
+    "variants": {
+      "A": {
+        "file": "head-mouthA.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthA-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "B": {
+        "file": "head-mouthB.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthB-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "C": {
+        "file": "head-mouthC.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthC-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "D": {
+        "file": "head-mouthD.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthD-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "E": {
+        "file": "head-mouthE.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthE-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "F": {
+        "file": "head-mouthF.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthF-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "G": {
+        "file": "head-mouthG.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthG-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "H": {
+        "file": "head-mouthH.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthH-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      },
+      "X": {
+        "file": "head-mouthX.png",
+        "px": [
+          27,
+          5,
+          658,
+          649
+        ],
+        "rect": [
+          36.86,
+          40.6,
+          109.67,
+          108.17
+        ],
+        "levels": {
+          "file": "head-mouthX-levels.png",
+          "px": [
+            28,
+            6,
+            657,
+            648
+          ],
+          "rect": [
+            37.03,
+            40.77,
+            109.5,
+            108
+          ]
+        }
+      }
+    }
+  }
+}

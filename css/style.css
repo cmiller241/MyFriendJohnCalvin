@@ -175,3 +175,38 @@ table.keys { border-collapse: collapse; width: 100%; }
 table.keys td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
 #toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: #000d; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 60; }
 #toast.show { opacity: 1; }
+details { margin-top: 8px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 0; }
+details summary:hover { color: var(--text); }
+
+/* Camera row on the timeline */
+.tl-row.cam .tl-head { color: #ffb4b4; }
+.tl-row.cam .tl-track { background-color: rgba(255, 107, 107, .05); }
+.kf.camkf { background: #ff6b6b; border-color: #5a1010; }        /* a cut */
+.kf.camkf.move { background: #4cc9f0; border-color: #0b3a4a; }   /* a smooth or steady move */
+.kf.camkf.cur { background: #fff; border-color: var(--sel); }
+
+/* Walks on the timeline */
+.walkbar { position: absolute; top: 3px; height: 11px; background: rgba(6, 214, 160, .55); border-radius: 3px; font-size: 9px; line-height: 11px; padding-left: 3px; overflow: hidden; pointer-events: none; }
+
+/* Fold-out sections in the right panel */
+.sec.fold > h4 { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 4px 0; border-radius: 4px; }
+.sec.fold > h4::before { content: '▾'; font-size: 11px; color: var(--muted); width: 10px; transition: transform .15s; }
+.sec.fold > h4:hover { color: var(--text); }
+.sec.fold > h4:focus-visible { outline: 2px solid var(--sel); }
+.sec.fold.closed > h4 { margin-bottom: 0; }
+.sec.fold.closed > h4::before { transform: rotate(-90deg); }
+.sec.fold.closed > :not(h4) { display: none; }
+.sec.fold.closed { padding: 8px 0; }
+.foldbar { display: flex; gap: 6px; padding: 0 0 8px; }
+.foldbar button { flex: 1; padding: 4px 6px; font-size: 12px; }
+
+/* Captions on the timeline */
+.capbar { position: absolute; bottom: 2px; height: 11px; background: rgba(255, 210, 63, .8); color: #111; border-radius: 3px; font-size: 9px; line-height: 11px; padding: 0 3px; overflow: hidden; white-space: nowrap; pointer-events: none; border-right: 1px solid rgba(0,0,0,.35); }
+
+/* Word markers (from captions) */
+.tl-row.words { height: 22px; position: sticky; top: 24px; z-index: 4; background: var(--panel); }
+.tl-row.words .tl-head { z-index: 6; color: var(--muted); font-size: 11px; cursor: default; }
+.wordmark { position: absolute; top: 3px; height: 16px; line-height: 16px; padding: 0 4px; font-size: 10px; color: #1b1300; background: rgba(255, 210, 63, .85); border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; border-left: 2px solid #b8860b; }
+.wordmark:hover { background: #ffe27a; z-index: 1; max-width: none !important; }
+#wordFind { width: 150px; margin: 0 0 0 6px; padding: 4px 8px; }
